@@ -1203,7 +1203,7 @@ export function ExpenseTable() {
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="grid gap-2">
-                            <Label htmlFor="food">Food ($)</Label>
+                            <Label htmlFor="food">Food (AED)</Label>
                             <Input
                               id="food"
                               type="number"
@@ -1231,7 +1231,7 @@ export function ExpenseTable() {
                             )}
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="taxi">Taxi ($)</Label>
+                            <Label htmlFor="taxi">Taxi (AED)</Label>
                             <Input
                               id="taxi"
                               type="number"
@@ -1259,7 +1259,7 @@ export function ExpenseTable() {
                             )}
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="others">Others ($)</Label>
+                            <Label htmlFor="others">Others (AED)</Label>
                             <Input
                               id="others"
                               type="number"
@@ -1480,7 +1480,7 @@ export function ExpenseTable() {
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="grid gap-2">
-                            <Label htmlFor="dialog_food">Food ($)</Label>
+                            <Label htmlFor="dialog_food">Food (AED)</Label>
                             <Input
                               id="dialog_food"
                               type="number"
@@ -1508,7 +1508,7 @@ export function ExpenseTable() {
                             )}
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="dialog_taxi">Taxi ($)</Label>
+                            <Label htmlFor="dialog_taxi">Taxi (AED)</Label>
                             <Input
                               id="dialog_taxi"
                               type="number"
@@ -1536,7 +1536,7 @@ export function ExpenseTable() {
                             )}
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="dialog_others">Others ($)</Label>
+                            <Label htmlFor="dialog_others">Others (AED)</Label>
                             <Input
                               id="dialog_others"
                               type="number"
@@ -1711,16 +1711,16 @@ export function ExpenseTable() {
                       <TableCell>{expense.job_no}</TableCell>
                       <TableCell>{expense.details}</TableCell>
                       <TableCell className="text-right">
-                        ${(expense.food || 0).toFixed(2)}
+                        AED {(expense.food || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
-                        ${(expense.taxi || 0).toFixed(2)}
+                        AED {(expense.taxi || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
-                        ${(expense.others || 0).toFixed(2)}
+                        AED {(expense.others || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
-                        ${getTotalExpense(expense).toFixed(2)}
+                        AED {getTotalExpense(expense).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -1784,7 +1784,7 @@ export function ExpenseTable() {
                           Food
                         </div>
                         <div className="font-medium">
-                          ${(expense.food || 0).toFixed(2)}
+                          AED {(expense.food || 0).toFixed(2)}
                         </div>
                       </div>
                       <div>
@@ -1792,7 +1792,7 @@ export function ExpenseTable() {
                           Taxi
                         </div>
                         <div className="font-medium">
-                          ${(expense.taxi || 0).toFixed(2)}
+                          AED {(expense.taxi || 0).toFixed(2)}
                         </div>
                       </div>
                       <div>
@@ -1800,7 +1800,7 @@ export function ExpenseTable() {
                           Others
                         </div>
                         <div className="font-medium">
-                          ${(expense.others || 0).toFixed(2)}
+                          AED {(expense.others || 0).toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -1809,7 +1809,7 @@ export function ExpenseTable() {
                         Total
                       </span>
                       <span className="font-bold text-lg">
-                        ${getTotalExpense(expense).toFixed(2)}
+                        AED {getTotalExpense(expense).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -1819,7 +1819,7 @@ export function ExpenseTable() {
 
             <div className="mt-4 flex justify-end">
               <div className="text-lg font-bold">
-                Month Total: ${getMonthTotal().toFixed(2)}
+                Month Total: AED {getMonthTotal().toFixed(2)}
               </div>
             </div>
           </>
@@ -1892,7 +1892,7 @@ export function ExpenseTable() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="edit_food">Food ($)</Label>
+                    <Label htmlFor="edit_food">Food (AED)</Label>
                     <Input
                       id="edit_food"
                       type="number"
@@ -1915,7 +1915,7 @@ export function ExpenseTable() {
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="edit_taxi">Taxi ($)</Label>
+                    <Label htmlFor="edit_taxi">Taxi (AED)</Label>
                     <Input
                       id="edit_taxi"
                       type="number"
@@ -1938,7 +1938,7 @@ export function ExpenseTable() {
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="edit_others">Others ($)</Label>
+                    <Label htmlFor="edit_others">Others (AED)</Label>
                     <Input
                       id="edit_others"
                       type="number"
@@ -2162,7 +2162,7 @@ export function ExpenseTable() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="dialog_edit_food">Food ($)</Label>
+                    <Label htmlFor="dialog_edit_food">Food (AED)</Label>
                     <Input
                       id="dialog_edit_food"
                       type="number"
@@ -2185,7 +2185,7 @@ export function ExpenseTable() {
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="dialog_edit_taxi">Taxi ($)</Label>
+                    <Label htmlFor="dialog_edit_taxi">Taxi (AED)</Label>
                     <Input
                       id="dialog_edit_taxi"
                       type="number"
@@ -2208,7 +2208,7 @@ export function ExpenseTable() {
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="dialog_edit_others">Others ($)</Label>
+                    <Label htmlFor="dialog_edit_others">Others (AED)</Label>
                     <Input
                       id="dialog_edit_others"
                       type="number"
@@ -2550,7 +2550,7 @@ export function ExpenseTable() {
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="mobile_food">Food ($)</Label>
+                      <Label htmlFor="mobile_food">Food (AED)</Label>
                       <Input
                         id="mobile_food"
                         type="number"
@@ -2578,7 +2578,7 @@ export function ExpenseTable() {
                       )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="mobile_taxi">Taxi ($)</Label>
+                      <Label htmlFor="mobile_taxi">Taxi (AED)</Label>
                       <Input
                         id="mobile_taxi"
                         type="number"
@@ -2606,7 +2606,7 @@ export function ExpenseTable() {
                       )}
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="mobile_others">Others ($)</Label>
+                      <Label htmlFor="mobile_others">Others (AED)</Label>
                       <Input
                         id="mobile_others"
                         type="number"
