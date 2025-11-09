@@ -5,7 +5,7 @@ import type { Tables, TablesInsert } from "../lib/database.types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import {
   Card,
@@ -510,32 +510,313 @@ export function ExpenseTable() {
       return;
     }
 
-    // Prepare data for Excel
-    const exportData = expenses.map((expense) => ({
-      Date: expense.date || "",
-      "Job No.": expense.job_no,
-      Details: expense.details,
-      Food: expense.food || 0,
-      Taxi: expense.taxi || 0,
-      Others: expense.others || 0,
-      Total: (expense.food || 0) + (expense.taxi || 0) + (expense.others || 0),
-    }));
-
-    // Create workbook and worksheet
-    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+
+    // Create data array with proper structure
+    const data: any[][] = [];
+
+    // Row 1: Empty
+    data.push([]);
+
+    // Row 2: Title (will be merged B2:H2)
+    data.push(["", "Amplitude Event Services FZE LLC", "", "", "", "", "", ""]);
+
+    // Row 3: Subtitle (will be merged B3:H3)
+    data.push(["", "Internal Expense Claim", "", "", "", "", "", ""]);
+
+    // Row 4: Empty
+    data.push([]);
+
+    // Row 5: Name and Month fields
+    data.push(["", "Name", "", "", "", "Month", "", ""]);
+
+    // Row 6: Empty
+    data.push([]);
+
+    // Row 7: Headers
+    data.push([
+      "",
+      "Date",
+      "Job No",
+      "Details",
+      "Taxi",
+      "Food",
+      "Others",
+      "Amount",
+    ]);
+
+    // Rows 8+: Data
+    expenses.forEach((expense) => {
+      // Format date to only show YYYY-MM-DD without time
+      const dateOnly = expense.date ? expense.date.split("T")[0] : "";
+
+      data.push([
+        "",
+        dateOnly,
+        expense.job_no,
+        expense.details,
+        expense.taxi || 0,
+        expense.food || 0,
+        expense.others || 0,
+        (expense.taxi || 0) + (expense.food || 0) + (expense.others || 0),
+      ]);
+    });
+
+    // Calculate totals
+    const totalTaxi = expenses.reduce((sum, e) => sum + (e.taxi || 0), 0);
+    const totalFood = expenses.reduce((sum, e) => sum + (e.food || 0), 0);
+    const totalOthers = expenses.reduce((sum, e) => sum + (e.others || 0), 0);
+    const grandTotal = totalTaxi + totalFood + totalOthers;
+
+    // Totals row
+    data.push([
+      "",
+      "",
+      "",
+      "Total",
+      totalTaxi,
+      totalFood,
+      totalOthers,
+      grandTotal,
+    ]);
+
+    // Empty row
+    data.push([]);
+
+    // Approved for payment
+    data.push(["", "Approved for payment", "", "", "", "", "", ""]);
+
+    // Create worksheet from array
+    const ws = XLSX.utils.aoa_to_sheet(data);
 
     // Set column widths
     ws["!cols"] = [
-      { wch: 12 }, // Date
-      { wch: 15 }, // Job No.
-      { wch: 30 }, // Details
-      { wch: 10 }, // Food
-      { wch: 10 }, // Taxi
-      { wch: 10 }, // Others
-      { wch: 10 }, // Total
+      { wch: 2 }, // Column A (empty)
+      { wch: 12 }, // B - Date
+      { wch: 12 }, // C - Job No
+      { wch: 35 }, // D - Details
+      { wch: 10 }, // E - Taxi
+      { wch: 10 }, // F - Food
+      { wch: 10 }, // G - Others
+      { wch: 12 }, // H - Amount
     ];
+
+    // Define border style
+    const thinBorder = {
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    };
+
+    const mediumBorder = {
+      top: { style: "medium", color: { rgb: "000000" } },
+      bottom: { style: "medium", color: { rgb: "000000" } },
+      left: { style: "medium", color: { rgb: "000000" } },
+      right: { style: "medium", color: { rgb: "000000" } },
+    };
+
+    // Style Title (B2)
+    const titleCell = "B2";
+    ws[titleCell].s = {
+      font: { bold: true, sz: 14 },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        top: mediumBorder.top,
+        left: mediumBorder.left,
+      },
+    };
+
+    // Apply thick border to merged title cells C2:H2
+    ["C2", "D2", "E2", "F2", "G2", "H2"].forEach((cell) => {
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          top: mediumBorder.top,
+          right: cell === "H2" ? mediumBorder.right : undefined,
+        },
+      };
+    });
+
+    // Style Subtitle (B3)
+    ws["B3"].s = {
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        left: mediumBorder.left,
+      },
+    };
+    ["C3", "D3", "E3", "F3", "G3", "H3"].forEach((cell) => {
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          right: cell === "H3" ? mediumBorder.right : undefined,
+        },
+      };
+    });
+
+    // Style empty Row 4 (B4:H4) - add side borders only
+    ["B", "C", "D", "E", "F", "G", "H"].forEach((col) => {
+      const cell = `${col}4`;
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          left: col === "B" ? mediumBorder.left : undefined,
+          right: col === "H" ? mediumBorder.right : undefined,
+        },
+      };
+    });
+
+    // Style Name and Month labels (B5, F5)
+    ws["B5"].s = {
+      font: { bold: true },
+      border: {
+        top: thinBorder.top,
+        left: mediumBorder.left,
+        bottom: thinBorder.bottom,
+        right: thinBorder.right,
+      },
+    };
+
+    // Add borders to Name input areas (C5, D5, E5)
+    ["C5", "D5", "E5"].forEach((cell) => {
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          top: thinBorder.top,
+          bottom: thinBorder.bottom,
+          left: thinBorder.left,
+          right: thinBorder.right,
+        },
+      };
+    });
+
+    // Style Month label and input
+    ws["F5"].s = {
+      font: { bold: true },
+      border: {
+        top: thinBorder.top,
+        bottom: thinBorder.bottom,
+        left: thinBorder.left,
+        right: thinBorder.right,
+      },
+    };
+
+    ["G5", "H5"].forEach((cell) => {
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          top: thinBorder.top,
+          bottom: thinBorder.bottom,
+          left: thinBorder.left,
+          right: cell === "H5" ? mediumBorder.right : thinBorder.right,
+        },
+      };
+    });
+
+    // Style empty Row 6 (B6:H6) - add side borders only
+    ["B", "C", "D", "E", "F", "G", "H"].forEach((col) => {
+      const cell = `${col}6`;
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          left: col === "B" ? mediumBorder.left : undefined,
+          right: col === "H" ? mediumBorder.right : undefined,
+        },
+      };
+    });
+
+    // Style Headers (Row 7)
+    ["B", "C", "D", "E", "F", "G", "H"].forEach((col) => {
+      const cell = `${col}7`;
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        font: { bold: true },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: thinBorder.top,
+          bottom: thinBorder.bottom,
+          left: col === "B" ? mediumBorder.left : thinBorder.left,
+          right: col === "H" ? mediumBorder.right : thinBorder.right,
+        },
+      };
+    });
+
+    // Style data rows with borders
+    const firstDataRow = 7; // 0-indexed
+    const lastDataRow = 7 + expenses.length - 1;
+    for (let row = firstDataRow; row <= lastDataRow; row++) {
+      ["B", "C", "D", "E", "F", "G", "H"].forEach((col) => {
+        const cell = `${col}${row + 1}`;
+        if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+        ws[cell].s = {
+          border: {
+            top: thinBorder.top,
+            bottom: thinBorder.bottom,
+            left: col === "B" ? mediumBorder.left : thinBorder.left,
+            right: col === "H" ? mediumBorder.right : thinBorder.right,
+          },
+          alignment: ["E", "F", "G", "H"].includes(col)
+            ? { horizontal: "right" }
+            : undefined,
+          numFmt: ["E", "F", "G", "H"].includes(col) ? "0.00" : undefined,
+        };
+      });
+    }
+
+    // Style totals row
+    const totalRow = 8 + expenses.length;
+    ["B", "C", "D", "E", "F", "G", "H"].forEach((col) => {
+      const cell = `${col}${totalRow}`;
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        font: { bold: true },
+        border: {
+          top: thinBorder.top,
+          bottom: mediumBorder.bottom,
+          left: col === "B" ? mediumBorder.left : thinBorder.left,
+          right: col === "H" ? mediumBorder.right : thinBorder.right,
+        },
+        alignment: ["E", "F", "G", "H"].includes(col)
+          ? { horizontal: "right" }
+          : col === "D"
+          ? { horizontal: "right" }
+          : undefined,
+        numFmt: ["E", "F", "G", "H"].includes(col) ? "0.00" : undefined,
+      };
+    });
+
+    // Style "Approved for payment" with border
+    const approvalRow = totalRow + 2;
+    ws[`B${approvalRow}`].s = {
+      font: { bold: true },
+      border: {
+        top: thinBorder.top,
+        left: thinBorder.left,
+        bottom: thinBorder.bottom,
+        right: thinBorder.right,
+      },
+    };
+    ["C", "D", "E"].forEach((col) => {
+      const cell = `${col}${approvalRow}`;
+      if (!ws[cell]) ws[cell] = { t: "s", v: "" };
+      ws[cell].s = {
+        border: {
+          top: thinBorder.top,
+          bottom: thinBorder.bottom,
+          left: thinBorder.left,
+          right: thinBorder.right,
+        },
+      };
+    });
+
+    // Merge cells for title, subtitle, and "Approved for payment"
+    ws["!merges"] = [
+      { s: { r: 1, c: 1 }, e: { r: 1, c: 7 } }, // Title B2:H2
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 7 } }, // Subtitle B3:H3
+      { s: { r: approvalRow - 1, c: 1 }, e: { r: approvalRow - 1, c: 4 } }, // Approved for payment
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Internal Expense Claim");
 
     // Generate filename with month
     const monthDisplay = formatMonthDisplay(selectedMonth);

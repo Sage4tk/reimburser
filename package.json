@@ -59,7 +59,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.17",
     "vaul": "^1.1.2",
-    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"
   },
@@ -69,7 +69,6 @@
     "@types/node": "^24.10.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
-    "@types/xlsx": "^0.0.35",
     "@vitejs/plugin-react": "^5.0.4",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
