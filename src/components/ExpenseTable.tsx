@@ -1362,7 +1362,7 @@ export function ExpenseTable() {
                           </p>
                         </div>
                       </div>
-                      <DrawerFooter>
+                      <DrawerFooter className="pb-8">
                         <Button type="submit" disabled={uploadingReceipt}>
                           {uploadingReceipt ? (
                             <>
@@ -2069,7 +2069,7 @@ export function ExpenseTable() {
                   </p>
                 </div>
               </div>
-              <DrawerFooter>
+              <DrawerFooter className="pb-8">
                 <Button type="submit" disabled={uploadingReceipt}>
                   {uploadingReceipt ? (
                     <>
@@ -2707,7 +2707,7 @@ export function ExpenseTable() {
                     </p>
                   </div>
                 </div>
-                <DrawerFooter>
+                <DrawerFooter className="pb-8">
                   <Button type="submit" disabled={uploadingReceipt}>
                     {uploadingReceipt ? (
                       <>
