@@ -5,6 +5,8 @@ import type { Tables, TablesInsert } from "../lib/database.types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
 import {
   Card,
   CardContent,
@@ -58,7 +60,7 @@ import {
 } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Spinner } from "./ui/spinner";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Download, FileText } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { z } from "zod";
 
@@ -501,6 +503,188 @@ export function ExpenseTable() {
     }
   };
 
+  // Export expenses to Excel
+  const handleExportToExcel = () => {
+    if (expenses.length === 0) {
+      setError("No expenses to export");
+      return;
+    }
+
+    // Prepare data for Excel
+    const exportData = expenses.map((expense) => ({
+      Date: expense.date || "",
+      "Job No.": expense.job_no,
+      Details: expense.details,
+      Food: expense.food || 0,
+      Taxi: expense.taxi || 0,
+      Others: expense.others || 0,
+      Total: (expense.food || 0) + (expense.taxi || 0) + (expense.others || 0),
+    }));
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 12 }, // Date
+      { wch: 15 }, // Job No.
+      { wch: 30 }, // Details
+      { wch: 10 }, // Food
+      { wch: 10 }, // Taxi
+      { wch: 10 }, // Others
+      { wch: 10 }, // Total
+    ];
+
+    // Generate filename with month
+    const monthDisplay = formatMonthDisplay(selectedMonth);
+    const filename = `amplitude-expense-claim-${monthDisplay.replace(
+      " ",
+      "-"
+    )}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(wb, filename);
+  };
+
+  // Export receipts to PDF
+  const handleExportReceiptsToPDF = async () => {
+    if (expenses.length === 0) {
+      setError("No expenses to export");
+      return;
+    }
+
+    setUploadingReceipt(true);
+    try {
+      const pdf = new jsPDF();
+      let yPosition = 20;
+      const pageHeight = pdf.internal.pageSize.height;
+      const pageWidth = pdf.internal.pageSize.width;
+      const margin = 15;
+      const imageMaxWidth = pageWidth - 2 * margin;
+
+      // Title
+      pdf.setFontSize(18);
+      pdf.text("Expense Receipts", pageWidth / 2, yPosition, {
+        align: "center",
+      });
+      yPosition += 15;
+
+      // Loop through each expense
+      for (const expense of expenses) {
+        // Fetch receipts for this expense
+        const { data: receipts } = await supabase
+          .from("receipt")
+          .select("*")
+          .eq("expense_id", expense.id);
+
+        if (!receipts || receipts.length === 0) continue;
+
+        // Add new page if needed
+        if (yPosition > pageHeight - 40) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        // Add header for this expense
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`Job No: ${expense.job_no}`, margin, yPosition);
+        yPosition += 7;
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Date: ${expense.date || "N/A"}`, margin, yPosition);
+        yPosition += 7;
+        pdf.text(`Details: ${expense.details}`, margin, yPosition);
+        yPosition += 10;
+
+        // Process each receipt image
+        for (const receipt of receipts) {
+          // Get signed URL
+          const { data: urlData } = await supabase.storage
+            .from("receipts")
+            .createSignedUrl(receipt.path, 3600);
+
+          if (!urlData?.signedUrl) continue;
+
+          try {
+            // Fetch the image
+            const response = await fetch(urlData.signedUrl);
+            const blob = await response.blob();
+
+            // Convert to base64
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+
+            // Get image dimensions to calculate scaling
+            const img = new Image();
+            await new Promise((resolve) => {
+              img.onload = resolve;
+              img.src = base64;
+            });
+
+            // Calculate scaled dimensions
+            let imgWidth = imageMaxWidth;
+            let imgHeight = (img.height * imageMaxWidth) / img.width;
+
+            // If image is too tall, scale to fit page
+            const maxHeight = pageHeight - yPosition - margin;
+            if (imgHeight > maxHeight) {
+              if (yPosition > 60) {
+                // Start new page if we're not at the top
+                pdf.addPage();
+                yPosition = 20;
+              }
+              imgHeight = Math.min(imgHeight, pageHeight - 2 * margin);
+              imgWidth = (img.width * imgHeight) / img.height;
+            }
+
+            // Check if we need a new page
+            if (yPosition + imgHeight > pageHeight - margin) {
+              pdf.addPage();
+              yPosition = 20;
+            }
+
+            // Add image to PDF
+            pdf.addImage(
+              base64,
+              "JPEG",
+              margin,
+              yPosition,
+              imgWidth,
+              imgHeight
+            );
+            yPosition += imgHeight + 10;
+          } catch (error) {
+            console.error("Error processing receipt image:", error);
+          }
+        }
+
+        yPosition += 10; // Space between expense groups
+      }
+
+      // Generate filename with month
+      const monthDisplay = formatMonthDisplay(selectedMonth);
+      const filename = `amplitude-receipts-${monthDisplay.replace(
+        " ",
+        "-"
+      )}.pdf`;
+
+      // Save PDF
+      pdf.save(filename);
+      setError(null);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      setError("Failed to generate PDF. Please try again.");
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteExpenseId) return;
 
@@ -596,446 +780,508 @@ export function ExpenseTable() {
             </CardDescription>
           </div>
 
-          {/* Add Button with Drawer for Mobile, Dialog for Desktop */}
-          {isMobile ? (
-            <Drawer open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DrawerTrigger asChild>
-                <Button onClick={resetForm} className="w-full sm:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Expense
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent>
-                <form onSubmit={handleAdd} className="px-4">
-                  <DrawerHeader>
-                    <DrawerTitle>Add New Expense</DrawerTitle>
-                    <DrawerDescription>
-                      Enter the details of your expense
-                    </DrawerDescription>
-                  </DrawerHeader>
-                  <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
-                    <div className="grid gap-2">
-                      <Label htmlFor="job_no">Job Number</Label>
-                      <Input
-                        id="job_no"
-                        value={formData.job_no}
-                        onChange={(e) => {
-                          setFormData({ ...formData, job_no: e.target.value });
-                          if (formErrors.job_no) {
-                            setFormErrors({ ...formErrors, job_no: undefined });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.job_no && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.job_no}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="date">Date</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => {
-                          setFormData({ ...formData, date: e.target.value });
-                          if (formErrors.date) {
-                            setFormErrors({ ...formErrors, date: undefined });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.date && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.date}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="details">Details</Label>
-                      <Input
-                        id="details"
-                        value={formData.details}
-                        onChange={(e) => {
-                          setFormData({ ...formData, details: e.target.value });
-                          if (formErrors.details) {
-                            setFormErrors({
-                              ...formErrors,
-                              details: undefined,
-                            });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.details && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.details}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {/* Export Buttons */}
+            <Button
+              variant="outline"
+              onClick={handleExportToExcel}
+              disabled={expenses.length === 0}
+              className="w-full sm:w-auto"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export to Excel
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleExportReceiptsToPDF}
+              disabled={expenses.length === 0 || uploadingReceipt}
+              className="w-full sm:w-auto"
+            >
+              {uploadingReceipt ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export Receipts to PDF
+                </>
+              )}
+            </Button>
+
+            {/* Add Button with Drawer for Mobile, Dialog for Desktop */}
+            {isMobile ? (
+              <Drawer open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DrawerTrigger asChild>
+                  <Button onClick={resetForm} className="w-full sm:w-auto">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Expense
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <form onSubmit={handleAdd} className="px-4">
+                    <DrawerHeader>
+                      <DrawerTitle>Add New Expense</DrawerTitle>
+                      <DrawerDescription>
+                        Enter the details of your expense
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
                       <div className="grid gap-2">
-                        <Label htmlFor="food">Food ($)</Label>
+                        <Label htmlFor="job_no">Job Number</Label>
                         <Input
-                          id="food"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.food === 0 ? "" : formData.food}
+                          id="job_no"
+                          value={formData.job_no}
                           onChange={(e) => {
-                            const value = e.target.value;
                             setFormData({
                               ...formData,
-                              food: value === "" ? 0 : parseFloat(value),
+                              job_no: e.target.value,
                             });
-                            if (formErrors.food) {
-                              setFormErrors({ ...formErrors, food: undefined });
-                            }
-                          }}
-                        />
-                        {formErrors.food && (
-                          <p className="text-sm text-red-500">
-                            {formErrors.food}
-                          </p>
-                        )}
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="taxi">Taxi ($)</Label>
-                        <Input
-                          id="taxi"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.taxi === 0 ? "" : formData.taxi}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData({
-                              ...formData,
-                              taxi: value === "" ? 0 : parseFloat(value),
-                            });
-                            if (formErrors.taxi) {
-                              setFormErrors({ ...formErrors, taxi: undefined });
-                            }
-                          }}
-                        />
-                        {formErrors.taxi && (
-                          <p className="text-sm text-red-500">
-                            {formErrors.taxi}
-                          </p>
-                        )}
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="others">Others ($)</Label>
-                        <Input
-                          id="others"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.others === 0 ? "" : formData.others}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData({
-                              ...formData,
-                              others: value === "" ? 0 : parseFloat(value),
-                            });
-                            if (formErrors.others) {
+                            if (formErrors.job_no) {
                               setFormErrors({
                                 ...formErrors,
-                                others: undefined,
+                                job_no: undefined,
                               });
                             }
                           }}
+                          required
                         />
-                        {formErrors.others && (
+                        {formErrors.job_no && (
                           <p className="text-sm text-red-500">
-                            {formErrors.others}
+                            {formErrors.job_no}
                           </p>
                         )}
                       </div>
-                    </div>
-
-                    {/* Receipt Upload Section */}
-                    <div className="grid gap-2">
-                      <Label htmlFor="receipt">Receipts (Optional)</Label>
-                      <Input
-                        id="receipt"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleFileSelect}
-                        className="cursor-pointer"
-                      />
-                      {receiptPreviews.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {receiptPreviews.map((preview, index) => (
-                            <div key={index} className="relative">
-                              <img
-                                src={preview}
-                                alt={`Receipt preview ${index + 1}`}
-                                className="h-24 w-full rounded border object-cover"
-                              />
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="absolute top-1 right-1"
-                                onClick={() => handleRemoveFile(index)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
+                      <div className="grid gap-2">
+                        <Label htmlFor="date">Date</Label>
+                        <Input
+                          id="date"
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => {
+                            setFormData({ ...formData, date: e.target.value });
+                            if (formErrors.date) {
+                              setFormErrors({ ...formErrors, date: undefined });
+                            }
+                          }}
+                          required
+                        />
+                        {formErrors.date && (
+                          <p className="text-sm text-red-500">
+                            {formErrors.date}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="details">Details</Label>
+                        <Input
+                          id="details"
+                          value={formData.details}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              details: e.target.value,
+                            });
+                            if (formErrors.details) {
+                              setFormErrors({
+                                ...formErrors,
+                                details: undefined,
+                              });
+                            }
+                          }}
+                          required
+                        />
+                        {formErrors.details && (
+                          <p className="text-sm text-red-500">
+                            {formErrors.details}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="food">Food ($)</Label>
+                          <Input
+                            id="food"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.food === 0 ? "" : formData.food}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                food: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.food) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  food: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.food && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.food}
+                            </p>
+                          )}
                         </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        PNG, JPG up to 5MB each. Select multiple files.
-                      </p>
+                        <div className="grid gap-2">
+                          <Label htmlFor="taxi">Taxi ($)</Label>
+                          <Input
+                            id="taxi"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.taxi === 0 ? "" : formData.taxi}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                taxi: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.taxi) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  taxi: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.taxi && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.taxi}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="others">Others ($)</Label>
+                          <Input
+                            id="others"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.others === 0 ? "" : formData.others}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                others: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.others) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  others: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.others && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.others}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Receipt Upload Section */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="receipt">Receipts (Optional)</Label>
+                        <Input
+                          id="receipt"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleFileSelect}
+                          className="cursor-pointer"
+                        />
+                        {receiptPreviews.length > 0 && (
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {receiptPreviews.map((preview, index) => (
+                              <div key={index} className="relative">
+                                <img
+                                  src={preview}
+                                  alt={`Receipt preview ${index + 1}`}
+                                  className="h-24 w-full rounded border object-cover"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute top-1 right-1"
+                                  onClick={() => handleRemoveFile(index)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          PNG, JPG up to 5MB each. Select multiple files.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <DrawerFooter>
-                    <Button type="submit" disabled={uploadingReceipt}>
-                      {uploadingReceipt ? (
-                        <>
-                          <Spinner className="mr-2 h-4 w-4" />
-                          Uploading...
-                        </>
-                      ) : (
-                        "Add Expense"
-                      )}
-                    </Button>
-                    <DrawerClose asChild>
-                      <Button type="button" variant="outline">
+                    <DrawerFooter>
+                      <Button type="submit" disabled={uploadingReceipt}>
+                        {uploadingReceipt ? (
+                          <>
+                            <Spinner className="mr-2 h-4 w-4" />
+                            Uploading...
+                          </>
+                        ) : (
+                          "Add Expense"
+                        )}
+                      </Button>
+                      <DrawerClose asChild>
+                        <Button type="button" variant="outline">
+                          Cancel
+                        </Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </form>
+                </DrawerContent>
+              </Drawer>
+            ) : (
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={resetForm} className="w-full sm:w-auto">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Expense
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <form onSubmit={handleAdd}>
+                    <DialogHeader>
+                      <DialogTitle>Add New Expense</DialogTitle>
+                      <DialogDescription>
+                        Enter the details of your expense
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="dialog_job_no">Job Number</Label>
+                        <Input
+                          id="dialog_job_no"
+                          value={formData.job_no}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              job_no: e.target.value,
+                            });
+                            if (formErrors.job_no) {
+                              setFormErrors({
+                                ...formErrors,
+                                job_no: undefined,
+                              });
+                            }
+                          }}
+                          required
+                        />
+                        {formErrors.job_no && (
+                          <p className="text-sm text-red-500">
+                            {formErrors.job_no}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="dialog_date">Date</Label>
+                        <Input
+                          id="dialog_date"
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => {
+                            setFormData({ ...formData, date: e.target.value });
+                            if (formErrors.date) {
+                              setFormErrors({ ...formErrors, date: undefined });
+                            }
+                          }}
+                          required
+                        />
+                        {formErrors.date && (
+                          <p className="text-sm text-red-500">
+                            {formErrors.date}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="dialog_details">Details</Label>
+                        <Input
+                          id="dialog_details"
+                          value={formData.details}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              details: e.target.value,
+                            });
+                            if (formErrors.details) {
+                              setFormErrors({
+                                ...formErrors,
+                                details: undefined,
+                              });
+                            }
+                          }}
+                          required
+                        />
+                        {formErrors.details && (
+                          <p className="text-sm text-red-500">
+                            {formErrors.details}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="dialog_food">Food ($)</Label>
+                          <Input
+                            id="dialog_food"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.food === 0 ? "" : formData.food}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                food: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.food) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  food: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.food && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.food}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="dialog_taxi">Taxi ($)</Label>
+                          <Input
+                            id="dialog_taxi"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.taxi === 0 ? "" : formData.taxi}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                taxi: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.taxi) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  taxi: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.taxi && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.taxi}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="dialog_others">Others ($)</Label>
+                          <Input
+                            id="dialog_others"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.others === 0 ? "" : formData.others}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData({
+                                ...formData,
+                                others: value === "" ? 0 : parseFloat(value),
+                              });
+                              if (formErrors.others) {
+                                setFormErrors({
+                                  ...formErrors,
+                                  others: undefined,
+                                });
+                              }
+                            }}
+                          />
+                          {formErrors.others && (
+                            <p className="text-sm text-red-500">
+                              {formErrors.others}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Receipt Upload Section */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="dialog_receipt">
+                          Receipts (Optional)
+                        </Label>
+                        <Input
+                          id="dialog_receipt"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleFileSelect}
+                          className="cursor-pointer"
+                        />
+                        {receiptPreviews.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {receiptPreviews.map((preview, index) => (
+                              <div key={index} className="relative">
+                                <img
+                                  src={preview}
+                                  alt={`Receipt preview ${index + 1}`}
+                                  className="h-24 w-full rounded border object-cover"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute top-1 right-1"
+                                  onClick={() => handleRemoveFile(index)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          PNG, JPG up to 5MB each. Select multiple files.
+                        </p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsAddDialogOpen(false)}
+                      >
                         Cancel
                       </Button>
-                    </DrawerClose>
-                  </DrawerFooter>
-                </form>
-              </DrawerContent>
-            </Drawer>
-          ) : (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm} className="w-full sm:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Expense
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <form onSubmit={handleAdd}>
-                  <DialogHeader>
-                    <DialogTitle>Add New Expense</DialogTitle>
-                    <DialogDescription>
-                      Enter the details of your expense
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="dialog_job_no">Job Number</Label>
-                      <Input
-                        id="dialog_job_no"
-                        value={formData.job_no}
-                        onChange={(e) => {
-                          setFormData({ ...formData, job_no: e.target.value });
-                          if (formErrors.job_no) {
-                            setFormErrors({ ...formErrors, job_no: undefined });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.job_no && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.job_no}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="dialog_date">Date</Label>
-                      <Input
-                        id="dialog_date"
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => {
-                          setFormData({ ...formData, date: e.target.value });
-                          if (formErrors.date) {
-                            setFormErrors({ ...formErrors, date: undefined });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.date && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.date}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="dialog_details">Details</Label>
-                      <Input
-                        id="dialog_details"
-                        value={formData.details}
-                        onChange={(e) => {
-                          setFormData({ ...formData, details: e.target.value });
-                          if (formErrors.details) {
-                            setFormErrors({
-                              ...formErrors,
-                              details: undefined,
-                            });
-                          }
-                        }}
-                        required
-                      />
-                      {formErrors.details && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.details}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="dialog_food">Food ($)</Label>
-                        <Input
-                          id="dialog_food"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.food === 0 ? "" : formData.food}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData({
-                              ...formData,
-                              food: value === "" ? 0 : parseFloat(value),
-                            });
-                            if (formErrors.food) {
-                              setFormErrors({ ...formErrors, food: undefined });
-                            }
-                          }}
-                        />
-                        {formErrors.food && (
-                          <p className="text-sm text-red-500">
-                            {formErrors.food}
-                          </p>
+                      <Button type="submit" disabled={uploadingReceipt}>
+                        {uploadingReceipt ? (
+                          <>
+                            <Spinner className="mr-2 h-4 w-4" />
+                            Uploading...
+                          </>
+                        ) : (
+                          "Add Expense"
                         )}
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="dialog_taxi">Taxi ($)</Label>
-                        <Input
-                          id="dialog_taxi"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.taxi === 0 ? "" : formData.taxi}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData({
-                              ...formData,
-                              taxi: value === "" ? 0 : parseFloat(value),
-                            });
-                            if (formErrors.taxi) {
-                              setFormErrors({ ...formErrors, taxi: undefined });
-                            }
-                          }}
-                        />
-                        {formErrors.taxi && (
-                          <p className="text-sm text-red-500">
-                            {formErrors.taxi}
-                          </p>
-                        )}
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="dialog_others">Others ($)</Label>
-                        <Input
-                          id="dialog_others"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.others === 0 ? "" : formData.others}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData({
-                              ...formData,
-                              others: value === "" ? 0 : parseFloat(value),
-                            });
-                            if (formErrors.others) {
-                              setFormErrors({
-                                ...formErrors,
-                                others: undefined,
-                              });
-                            }
-                          }}
-                        />
-                        {formErrors.others && (
-                          <p className="text-sm text-red-500">
-                            {formErrors.others}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Receipt Upload Section */}
-                    <div className="grid gap-2">
-                      <Label htmlFor="dialog_receipt">
-                        Receipts (Optional)
-                      </Label>
-                      <Input
-                        id="dialog_receipt"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleFileSelect}
-                        className="cursor-pointer"
-                      />
-                      {receiptPreviews.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 mt-2">
-                          {receiptPreviews.map((preview, index) => (
-                            <div key={index} className="relative">
-                              <img
-                                src={preview}
-                                alt={`Receipt preview ${index + 1}`}
-                                className="h-24 w-full rounded border object-cover"
-                              />
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="absolute top-1 right-1"
-                                onClick={() => handleRemoveFile(index)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        PNG, JPG up to 5MB each. Select multiple files.
-                      </p>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsAddDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={uploadingReceipt}>
-                      {uploadingReceipt ? (
-                        <>
-                          <Spinner className="mr-2 h-4 w-4" />
-                          Uploading...
-                        </>
-                      ) : (
-                        "Add Expense"
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
