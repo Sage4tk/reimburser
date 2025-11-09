@@ -60,7 +60,16 @@ import {
 } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Spinner } from "./ui/spinner";
-import { Plus, Pencil, Trash2, X, Download, FileText } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Download,
+  FileText,
+  Camera,
+  Upload,
+} from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { z } from "zod";
 
@@ -1269,14 +1278,46 @@ export function ExpenseTable() {
 
                       {/* Receipt Upload Section */}
                       <div className="grid gap-2">
-                        <Label htmlFor="receipt">Receipts (Optional)</Label>
-                        <Input
+                        <Label>Receipts (Optional)</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              document.getElementById("receipt-camera")?.click()
+                            }
+                            className="flex-1"
+                          >
+                            <Camera className="mr-2 h-4 w-4" />
+                            Take Picture
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              document.getElementById("receipt")?.click()
+                            }
+                            className="flex-1"
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload File
+                          </Button>
+                        </div>
+                        <input
+                          id="receipt-camera"
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <input
                           id="receipt"
                           type="file"
                           accept="image/*"
                           multiple
                           onChange={handleFileSelect}
-                          className="cursor-pointer"
+                          className="hidden"
                         />
                         {receiptPreviews.length > 0 && (
                           <div className="grid grid-cols-2 gap-2 mt-2">
@@ -1501,16 +1542,48 @@ export function ExpenseTable() {
 
                       {/* Receipt Upload Section */}
                       <div className="grid gap-2">
-                        <Label htmlFor="dialog_receipt">
-                          Receipts (Optional)
-                        </Label>
-                        <Input
+                        <Label>Receipts (Optional)</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              document
+                                .getElementById("dialog-receipt-camera")
+                                ?.click()
+                            }
+                            className="flex-1"
+                          >
+                            <Camera className="mr-2 h-4 w-4" />
+                            Take Picture
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              document.getElementById("dialog_receipt")?.click()
+                            }
+                            className="flex-1"
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload File
+                          </Button>
+                        </div>
+                        <input
+                          id="dialog-receipt-camera"
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <input
                           id="dialog_receipt"
                           type="file"
                           accept="image/*"
                           multiple
                           onChange={handleFileSelect}
-                          className="cursor-pointer"
+                          className="hidden"
                         />
                         {receiptPreviews.length > 0 && (
                           <div className="grid grid-cols-3 gap-2 mt-2">
@@ -1898,14 +1971,46 @@ export function ExpenseTable() {
 
                 {/* Upload New Receipt */}
                 <div className="grid gap-2">
-                  <Label htmlFor="edit_receipt">Add Receipts (Optional)</Label>
-                  <Input
+                  <Label>Add Receipts (Optional)</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        document.getElementById("edit-receipt-camera")?.click()
+                      }
+                      className="flex-1"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Take Picture
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        document.getElementById("edit_receipt")?.click()
+                      }
+                      className="flex-1"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload File
+                    </Button>
+                  </div>
+                  <input
+                    id="edit-receipt-camera"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <input
                     id="edit_receipt"
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={handleFileSelect}
-                    className="cursor-pointer"
+                    className="hidden"
                   />
                   {receiptPreviews.length > 0 && (
                     <div className="grid grid-cols-2 gap-2 mt-2">
@@ -2136,16 +2241,48 @@ export function ExpenseTable() {
 
                 {/* Upload New Receipt */}
                 <div className="grid gap-2">
-                  <Label htmlFor="dialog_edit_receipt">
-                    Add Receipts (Optional)
-                  </Label>
-                  <Input
+                  <Label>Add Receipts (Optional)</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        document
+                          .getElementById("dialog-edit-receipt-camera")
+                          ?.click()
+                      }
+                      className="flex-1"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Take Picture
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        document.getElementById("dialog_edit_receipt")?.click()
+                      }
+                      className="flex-1"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload File
+                    </Button>
+                  </div>
+                  <input
+                    id="dialog-edit-receipt-camera"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <input
                     id="dialog_edit_receipt"
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={handleFileSelect}
-                    className="cursor-pointer"
+                    className="hidden"
                   />
                   {receiptPreviews.length > 0 && (
                     <div className="grid grid-cols-3 gap-2 mt-2">
