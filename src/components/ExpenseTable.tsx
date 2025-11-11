@@ -1116,18 +1116,18 @@ export function ExpenseTable() {
                       Add Expense
                     </Button>
                   </DrawerTrigger>
-                  <DrawerContent className="max-h-[95vh]">
+                  <DrawerContent className="max-h-[95vh] flex flex-col">
                     <form
                       onSubmit={handleAdd}
-                      className="px-4 flex flex-col max-h-[95vh]"
+                      className="px-4 flex flex-col flex-1 min-h-0"
                     >
-                      <DrawerHeader>
+                      <DrawerHeader className="shrink-0">
                         <DrawerTitle>Add New Expense</DrawerTitle>
                         <DrawerDescription>
                           Enter the details of your expense
                         </DrawerDescription>
                       </DrawerHeader>
-                      <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
+                      <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1 min-h-0">
                         <div className="grid gap-2">
                           <Label htmlFor="job_no">Job Number</Label>
                           <Input
@@ -1365,7 +1365,7 @@ export function ExpenseTable() {
                           </p>
                         </div>
                       </div>
-                      <DrawerFooter className="pb-8">
+                      <DrawerFooter className="pb-8 shrink-0">
                         <Button type="submit" disabled={uploadingReceipt}>
                           {uploadingReceipt ? (
                             <>
@@ -1832,18 +1832,18 @@ export function ExpenseTable() {
       {/* Edit Dialog/Drawer */}
       {isMobile ? (
         <Drawer open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DrawerContent className="max-h-[95vh]">
+          <DrawerContent className="max-h-[95vh] flex flex-col">
             <form
               onSubmit={handleEdit}
-              className="px-4 flex flex-col max-h-[95vh]"
+              className="px-4 flex flex-col flex-1 min-h-0"
             >
-              <DrawerHeader>
+              <DrawerHeader className="shrink-0">
                 <DrawerTitle>Edit Expense</DrawerTitle>
                 <DrawerDescription>
                   Update the details of your expense
                 </DrawerDescription>
               </DrawerHeader>
-              <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
+              <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1 min-h-0">
                 <div className="grid gap-2">
                   <Label htmlFor="edit_job_no">Job Number</Label>
                   <Input
@@ -2075,7 +2075,7 @@ export function ExpenseTable() {
                   </p>
                 </div>
               </div>
-              <DrawerFooter className="pb-8">
+              <DrawerFooter className="pb-8 shrink-0">
                 <Button type="submit" disabled={uploadingReceipt}>
                   {uploadingReceipt ? (
                     <>
@@ -2477,18 +2477,18 @@ export function ExpenseTable() {
 
           {/* Mobile Add Expense Drawer */}
           <Drawer open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DrawerContent className="max-h-[95vh]">
+            <DrawerContent className="max-h-[95vh] flex flex-col">
               <form
                 onSubmit={handleAdd}
-                className="px-4 flex flex-col max-h-[95vh]"
+                className="px-4 flex flex-col flex-1 min-h-0"
               >
-                <DrawerHeader>
+                <DrawerHeader className="shrink-0">
                   <DrawerTitle>Add New Expense</DrawerTitle>
                   <DrawerDescription>
                     Enter the details of your expense
                   </DrawerDescription>
                 </DrawerHeader>
-                <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
+                <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1 min-h-0">
                   <div className="grid gap-2">
                     <Label htmlFor="mobile_job_no">Job Number</Label>
                     <Input
@@ -2716,7 +2716,7 @@ export function ExpenseTable() {
                     </p>
                   </div>
                 </div>
-                <DrawerFooter className="pb-8">
+                <DrawerFooter className="pb-8 shrink-0">
                   <Button type="submit" disabled={uploadingReceipt}>
                     {uploadingReceipt ? (
                       <>
