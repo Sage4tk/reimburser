@@ -1116,15 +1116,18 @@ export function ExpenseTable() {
                       Add Expense
                     </Button>
                   </DrawerTrigger>
-                  <DrawerContent>
-                    <form onSubmit={handleAdd} className="px-4">
+                  <DrawerContent className="max-h-[95vh]">
+                    <form
+                      onSubmit={handleAdd}
+                      className="px-4 flex flex-col max-h-[95vh]"
+                    >
                       <DrawerHeader>
                         <DrawerTitle>Add New Expense</DrawerTitle>
                         <DrawerDescription>
                           Enter the details of your expense
                         </DrawerDescription>
                       </DrawerHeader>
-                      <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                      <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
                         <div className="grid gap-2">
                           <Label htmlFor="job_no">Job Number</Label>
                           <Input
@@ -1829,15 +1832,18 @@ export function ExpenseTable() {
       {/* Edit Dialog/Drawer */}
       {isMobile ? (
         <Drawer open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DrawerContent>
-            <form onSubmit={handleEdit} className="px-4">
+          <DrawerContent className="max-h-[95vh]">
+            <form
+              onSubmit={handleEdit}
+              className="px-4 flex flex-col max-h-[95vh]"
+            >
               <DrawerHeader>
                 <DrawerTitle>Edit Expense</DrawerTitle>
                 <DrawerDescription>
                   Update the details of your expense
                 </DrawerDescription>
               </DrawerHeader>
-              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+              <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
                 <div className="grid gap-2">
                   <Label htmlFor="edit_job_no">Job Number</Label>
                   <Input
@@ -2471,15 +2477,18 @@ export function ExpenseTable() {
 
           {/* Mobile Add Expense Drawer */}
           <Drawer open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DrawerContent>
-              <form onSubmit={handleAdd} className="px-4">
+            <DrawerContent className="max-h-[95vh]">
+              <form
+                onSubmit={handleAdd}
+                className="px-4 flex flex-col max-h-[95vh]"
+              >
                 <DrawerHeader>
                   <DrawerTitle>Add New Expense</DrawerTitle>
                   <DrawerDescription>
                     Enter the details of your expense
                   </DrawerDescription>
                 </DrawerHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1">
                   <div className="grid gap-2">
                     <Label htmlFor="mobile_job_no">Job Number</Label>
                     <Input
