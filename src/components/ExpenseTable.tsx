@@ -847,7 +847,7 @@ export function ExpenseTable() {
 
     setUploadingReceipt(true);
     try {
-      // Get the current session for authorization
+      // Get the current session token
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -857,60 +857,48 @@ export function ExpenseTable() {
         return;
       }
 
-      // Call the edge function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-pdf`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            expenses: expenses.map((exp) => ({
-              id: exp.id,
-              job_no: exp.job_no,
-              date: exp.date,
-              details: exp.details,
-            })),
-            selectedMonth: formatMonthDisplay(selectedMonth),
-          }),
-        }
-      );
+      // Call the Edge Function
+      const { data, error } = await supabase.functions.invoke("generate-pdf", {
+        body: {
+          expenses: expenses,
+          selectedMonth: formatMonthDisplay(selectedMonth),
+        },
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate PDF");
+      if (error) {
+        console.error("Error calling generate-pdf function:", error);
+        setError("Failed to generate PDF. Please try again.");
+        return;
       }
 
-      const { pdf, filename } = await response.json();
-
-      // Convert base64 to blob and download
-      const binaryString = atob(pdf);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      if (!data || !data.pdf) {
+        setError("No PDF data received from server");
+        return;
       }
-      const blob = new Blob([bytes], { type: "application/pdf" });
+
+      // Convert base64 to blob
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "application/pdf" });
 
       // Create download link
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filename;
+      link.download = data.filename || "receipts.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(url);
 
       setError(null);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to generate PDF. Please try again."
-      );
+      setError("Failed to generate PDF. Please try again.");
     } finally {
       setUploadingReceipt(false);
     }
