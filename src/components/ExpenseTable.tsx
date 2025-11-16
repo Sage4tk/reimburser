@@ -6,7 +6,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import * as XLSX from "xlsx-js-style";
-import { jsPDF } from "jspdf";
 import {
   Card,
   CardContent,
@@ -848,129 +847,70 @@ export function ExpenseTable() {
 
     setUploadingReceipt(true);
     try {
-      const pdf = new jsPDF();
-      let yPosition = 20;
-      const pageHeight = pdf.internal.pageSize.height;
-      const pageWidth = pdf.internal.pageSize.width;
-      const margin = 15;
-      const imageMaxWidth = pageWidth - 2 * margin;
+      // Get the current session for authorization
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      // Title
-      pdf.setFontSize(18);
-      pdf.text("Expense Receipts", pageWidth / 2, yPosition, {
-        align: "center",
-      });
-      yPosition += 15;
-
-      // Loop through each expense
-      for (const expense of expenses) {
-        // Fetch receipts for this expense
-        const { data: receipts } = await supabase
-          .from("receipt")
-          .select("*")
-          .eq("expense_id", expense.id);
-
-        if (!receipts || receipts.length === 0) continue;
-
-        // Add new page if needed
-        if (yPosition > pageHeight - 40) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-
-        // Add header for this expense
-        pdf.setFontSize(14);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(`Job No: ${expense.job_no}`, margin, yPosition);
-        yPosition += 7;
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(`Date: ${expense.date || "N/A"}`, margin, yPosition);
-        yPosition += 7;
-        pdf.text(`Details: ${expense.details}`, margin, yPosition);
-        yPosition += 10;
-
-        // Process each receipt image
-        for (const receipt of receipts) {
-          // Get signed URL
-          const { data: urlData } = await supabase.storage
-            .from("receipts")
-            .createSignedUrl(receipt.path, 3600);
-
-          if (!urlData?.signedUrl) continue;
-
-          try {
-            // Fetch the image
-            const response = await fetch(urlData.signedUrl);
-            const blob = await response.blob();
-
-            // Convert to base64
-            const base64 = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-
-            // Get image dimensions to calculate scaling
-            const img = new Image();
-            await new Promise((resolve) => {
-              img.onload = resolve;
-              img.src = base64;
-            });
-
-            // Calculate scaled dimensions
-            let imgWidth = imageMaxWidth;
-            let imgHeight = (img.height * imageMaxWidth) / img.width;
-
-            // If image is too tall, scale to fit page
-            const maxHeight = pageHeight - yPosition - margin;
-            if (imgHeight > maxHeight) {
-              if (yPosition > 60) {
-                // Start new page if we're not at the top
-                pdf.addPage();
-                yPosition = 20;
-              }
-              imgHeight = Math.min(imgHeight, pageHeight - 2 * margin);
-              imgWidth = (img.width * imgHeight) / img.height;
-            }
-
-            // Check if we need a new page
-            if (yPosition + imgHeight > pageHeight - margin) {
-              pdf.addPage();
-              yPosition = 20;
-            }
-
-            // Add image to PDF
-            pdf.addImage(
-              base64,
-              "JPEG",
-              margin,
-              yPosition,
-              imgWidth,
-              imgHeight
-            );
-            yPosition += imgHeight + 10;
-          } catch (error) {
-            console.error("Error processing receipt image:", error);
-          }
-        }
-
-        yPosition += 10; // Space between expense groups
+      if (!session) {
+        setError("You must be logged in to export receipts");
+        return;
       }
 
-      // Generate filename with month
-      const monthDisplay = formatMonthDisplay(selectedMonth);
-      const filename = `amplitude-receipts-${monthDisplay.replace(
-        " ",
-        "-"
-      )}.pdf`;
+      // Call the edge function
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-pdf`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            expenses: expenses.map((exp) => ({
+              id: exp.id,
+              job_no: exp.job_no,
+              date: exp.date,
+              details: exp.details,
+            })),
+            selectedMonth: formatMonthDisplay(selectedMonth),
+          }),
+        }
+      );
 
-      // Save PDF
-      pdf.save(filename);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate PDF");
+      }
+
+      const { pdf, filename } = await response.json();
+
+      // Convert base64 to blob and download
+      const binaryString = atob(pdf);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: "application/pdf" });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
       setError(null);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setError("Failed to generate PDF. Please try again.");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate PDF. Please try again."
+      );
     } finally {
       setUploadingReceipt(false);
     }

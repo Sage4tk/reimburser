@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "jspdf": "https://esm.sh/jspdf@2.5.2"
+  }
+}
