@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     );
 
     // Get request body
-    const { expenses, selectedMonth } = await req.json();
+    const { expenses, selectedMonth, userName } = await req.json();
 
     if (!expenses || expenses.length === 0) {
       return new Response(
@@ -66,7 +66,20 @@ Deno.serve(async (req) => {
     pdf.text("Expense Receipts", pageWidth / 2, yPosition, {
       align: "center",
     });
-    yPosition += 15;
+    yPosition += 10;
+
+    // Name and Month
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "normal");
+    if (userName) {
+      pdf.text(`Name: ${userName}`, margin, yPosition);
+      yPosition += 7;
+    }
+    if (selectedMonth) {
+      pdf.text(`Month: ${selectedMonth}`, margin, yPosition);
+      yPosition += 7;
+    }
+    yPosition += 8;
 
     // Process each expense sequentially
     for (const expense of expenses as Expense[]) {

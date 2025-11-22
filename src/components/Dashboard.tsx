@@ -1,30 +1,69 @@
+import { useState, useEffect } from "react";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "./ui/button";
 import { ExpenseTable } from "./ExpenseTable";
+import { UserProfile } from "./UserProfile";
+import { SetupNameDialog } from "./SetupNameDialog";
+import supabase from "../lib/supabase";
 
 export function Dashboard() {
   const { user, signOut } = useAuthStore();
+  const [userName, setUserName] = useState<string | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
+
+  useEffect(() => {
+    fetchUserName();
+  }, [user]);
+
+  const fetchUserName = async () => {
+    if (!user) return;
+
+    try {
+      const { data } = await supabase
+        .from("user_profile")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .single();
+
+      setUserName(data?.full_name || null);
+    } catch (err) {
+      console.error("Error fetching user name:", err);
+    } finally {
+      setProfileChecked(true);
+    }
+  };
+
+  const handleNameSetupComplete = () => {
+    fetchUserName();
+  };
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-8">
+      {profileChecked && (
+        <SetupNameDialog onComplete={handleNameSetupComplete} />
+      )}
+
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              Welcome back, {user?.email}
+              Welcome back, {userName || user?.email}
             </p>
           </div>
-          <Button
-            onClick={signOut}
-            variant="outline"
-            className="w-full sm:w-auto"
-          >
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <UserProfile />
+            <Button
+              onClick={signOut}
+              variant="outline"
+              className="flex-1 sm:flex-initial"
+            >
+              Sign Out
+            </Button>
+          </div>
         </div>
 
-        <ExpenseTable />
+        <ExpenseTable userName={userName} />
       </div>
     </div>
   );

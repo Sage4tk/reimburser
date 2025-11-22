@@ -110,7 +110,11 @@ interface FormErrors {
   others?: string;
 }
 
-export function ExpenseTable() {
+interface ExpenseTableProps {
+  userName?: string | null;
+}
+
+export function ExpenseTable({ userName }: ExpenseTableProps) {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -537,7 +541,8 @@ export function ExpenseTable() {
     data.push([]);
 
     // Row 5: Name and Month fields
-    data.push(["", "Name", "", "", "", "Month", "", ""]);
+    const monthDisplay = formatMonthDisplay(selectedMonth);
+    data.push(["", "Name", userName || "", "", "", "Month", monthDisplay, ""]);
 
     // Row 6: Empty
     data.push([]);
@@ -828,7 +833,6 @@ export function ExpenseTable() {
     XLSX.utils.book_append_sheet(wb, ws, "Internal Expense Claim");
 
     // Generate filename with month
-    const monthDisplay = formatMonthDisplay(selectedMonth);
     const filename = `amplitude-expense-claim-${monthDisplay.replace(
       " ",
       "-"
@@ -862,6 +866,7 @@ export function ExpenseTable() {
         body: {
           expenses: expenses,
           selectedMonth: formatMonthDisplay(selectedMonth),
+          userName: userName || null,
         },
       });
 
