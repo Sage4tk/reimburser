@@ -1,13 +1,10 @@
-// Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyHandler,
+  APIGatewayProxyResult,
+} from "aws-lambda";
+import { createClient } from "@supabase/supabase-js";
 import jsPDF from "jspdf";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
 
 interface Expense {
   id: string;
@@ -22,36 +19,74 @@ interface Receipt {
   expense_id: string;
 }
 
-Deno.serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+interface RequestBody {
+  expenses: Expense[];
+  selectedMonth: string;
+  userName?: string | null;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  userToken: string;
+}
+
+// CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*", // In production, replace with your actual domain
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+};
+
+export const handler: APIGatewayProxyHandler = async (
+  event: APIGatewayProxyEvent,
+): Promise<APIGatewayProxyResult> => {
+  // Handle CORS preflight
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: "",
+    };
   }
 
   try {
-    // Create Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
-    );
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Missing request body" }),
+      };
+    }
 
-    // Get request body
-    const { expenses, selectedMonth, userName } = await req.json();
+    const {
+      expenses,
+      selectedMonth,
+      userName,
+      supabaseUrl,
+      supabaseAnonKey,
+      userToken,
+    }: RequestBody = JSON.parse(event.body);
 
     if (!expenses || expenses.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No expenses provided" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "No expenses provided" }),
+      };
     }
+
+    if (!supabaseUrl || !supabaseAnonKey || !userToken) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Missing Supabase credentials" }),
+      };
+    }
+
+    // Create Supabase client
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    });
 
     // Create PDF
     const pdf = new jsPDF();
@@ -81,11 +116,11 @@ Deno.serve(async (req) => {
     }
     yPosition += 8;
 
-    // Process each expense sequentially
+    // Process each expense
     let processedReceipts = 0;
-    const MAX_RECEIPTS = 100; // Limit to prevent timeout
+    const MAX_RECEIPTS = 150; // Increased limit for Lambda
 
-    for (const expense of expenses as Expense[]) {
+    for (const expense of expenses) {
       // Fetch receipts for this expense
       const { data: receipts } = await supabaseClient
         .from("receipt")
@@ -116,7 +151,7 @@ Deno.serve(async (req) => {
       pdf.text(`Details: ${expense.details}`, margin, yPosition);
       yPosition += 10;
 
-      // Process each receipt sequentially
+      // Process each receipt
       for (const receipt of receipts as Receipt[]) {
         if (processedReceipts >= MAX_RECEIPTS) {
           console.warn(`Reached maximum receipt limit of ${MAX_RECEIPTS}`);
@@ -133,7 +168,7 @@ Deno.serve(async (req) => {
 
           // Fetch image with timeout
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for Lambda
 
           const response = await fetch(urlData.signedUrl, {
             signal: controller.signal,
@@ -146,8 +181,8 @@ Deno.serve(async (req) => {
           const contentType = response.headers.get("content-type") ||
             "image/jpeg";
 
-          // Skip very large images to prevent memory issues
-          const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+          // Skip very large images
+          const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for Lambda
           if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
             console.warn(
               `Skipping large image: ${receipt.path} (${arrayBuffer.byteLength} bytes)`,
@@ -155,7 +190,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Convert to base64 in chunks to avoid stack overflow
+          // Convert to base64 in chunks
           const uint8Array = new Uint8Array(arrayBuffer);
           let binaryString = "";
           const chunkSize = 8192;
@@ -166,9 +201,9 @@ Deno.serve(async (req) => {
           const base64 = btoa(binaryString);
           const dataUrl = `data:${contentType};base64,${base64}`;
 
-          // Use smaller image dimensions to reduce PDF size and processing time
+          // Image dimensions
           const imgWidth = imageMaxWidth;
-          const imgHeight = 120; // Reduced from 150 for better performance
+          const imgHeight = 120;
 
           // Validate dimensions
           if (!imgWidth || !imgHeight || imgWidth <= 0 || imgHeight <= 0) {
@@ -190,7 +225,7 @@ Deno.serve(async (req) => {
           // Determine image format from data URL
           const imageFormat = dataUrl.includes("image/png") ? "PNG" : "JPEG";
 
-          // Add image to PDF with compression
+          // Add image to PDF
           pdf.addImage(
             dataUrl,
             imageFormat,
@@ -199,7 +234,7 @@ Deno.serve(async (req) => {
             imgWidth,
             imgHeight,
             undefined,
-            "FAST", // Use fast compression to reduce processing time
+            "FAST",
           );
           yPosition += imgHeight + 10;
           processedReceipts++;
@@ -217,7 +252,7 @@ Deno.serve(async (req) => {
       if (processedReceipts >= MAX_RECEIPTS) break;
     }
 
-    // Generate PDF as base64 using chunking to avoid stack overflow
+    // Generate PDF as base64
     const pdfOutput = pdf.output("arraybuffer");
     const uint8Array = new Uint8Array(pdfOutput);
     let binaryString = "";
@@ -226,28 +261,29 @@ Deno.serve(async (req) => {
       const chunk = uint8Array.subarray(i, i + chunkSize);
       binaryString += String.fromCharCode(...chunk);
     }
-    const base64Pdf = btoa(binaryString);
+    const base64Pdf = Buffer.from(pdfOutput).toString("base64");
 
-    return new Response(
-      JSON.stringify({
+    return {
+      statusCode: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         pdf: base64Pdf,
         filename: `amplitude-receipts-${selectedMonth.replace(" ", "-")}.pdf`,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    };
   } catch (error) {
     console.error("Error generating PDF:", error);
     const errorMessage = error instanceof Error
       ? error.message
       : "Failed to generate PDF";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: errorMessage }),
+    };
   }
-});
+};

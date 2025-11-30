@@ -870,20 +870,37 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         return;
       }
 
-      // Call the Edge Function
-      const { data, error } = await supabase.functions.invoke("generate-pdf", {
-        body: {
+      // Get Lambda URL from environment
+      const lambdaUrl = import.meta.env.VITE_LAMBDA_PDF_URL;
+
+      if (!lambdaUrl) {
+        setError("PDF service not configured. Please contact support.");
+        console.error("VITE_LAMBDA_PDF_URL not set in environment");
+        return;
+      }
+
+      // Call AWS Lambda function
+      const response = await fetch(lambdaUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           expenses: expenses,
           selectedMonth: formatMonthDisplay(selectedMonth),
           userName: userName || null,
-        },
+          supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+          supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          userToken: session.access_token,
+        }),
       });
 
-      if (error) {
-        console.error("Error calling generate-pdf function:", error);
-        setError("Failed to generate PDF. Please try again.");
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
+
+      const data = await response.json();
 
       if (!data || !data.pdf) {
         setError("No PDF data received from server");
@@ -912,7 +929,8 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       setError(null);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setError("Failed to generate PDF. Please try again.");
+      const message = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to generate PDF: ${message}`);
     } finally {
       setUploadingReceipt(false);
     }
