@@ -157,9 +157,18 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     const [year, month] = monthString.split("-").map(Number);
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
+
+    // Format dates in local timezone to avoid UTC conversion issues
+    const formatLocalDate = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
     return {
-      start: firstDay.toISOString().split("T")[0],
-      end: lastDay.toISOString().split("T")[0],
+      start: formatLocalDate(firstDay),
+      end: formatLocalDate(lastDay),
     };
   };
 
