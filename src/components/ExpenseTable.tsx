@@ -872,14 +872,20 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       // Get Lambda URL from environment
       const lambdaUrl = import.meta.env.VITE_LAMBDA_PDF_URL;
-
       if (!lambdaUrl) {
-        setError("PDF service not configured. Please contact support.");
-        console.error("VITE_LAMBDA_PDF_URL not set in environment");
+        setError("Lambda URL not configured");
         return;
       }
 
-      // Call AWS Lambda function
+      console.log("Calling Lambda at:", {
+        expenses: expenses,
+        selectedMonth: formatMonthDisplay(selectedMonth),
+        userName: userName || null,
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        userToken: session.access_token,
+      });
+      // Call AWS Lambda
       const response = await fetch(lambdaUrl, {
         method: "POST",
         headers: {
@@ -897,40 +903,31 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        console.error("Lambda error:", errorData);
+        setError("Failed to generate PDF. Please try again.");
+        return;
       }
 
       const data = await response.json();
 
-      if (!data || !data.pdf) {
-        setError("No PDF data received from server");
+      if (!data || !data.downloadUrl) {
+        setError("No PDF download URL received from server");
         return;
       }
 
-      // Convert base64 to blob
-      const byteCharacters = atob(data.pdf);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "application/pdf" });
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
+      // Download PDF from S3 URL
       const link = document.createElement("a");
-      link.href = url;
+      link.href = data.downloadUrl;
       link.download = data.filename || "receipts.pdf";
+      link.target = "_blank"; // Open in new tab as fallback
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
 
       setError(null);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
-      setError(`Failed to generate PDF: ${message}`);
+      setError("Failed to generate PDF. Please try again.");
     } finally {
       setUploadingReceipt(false);
     }

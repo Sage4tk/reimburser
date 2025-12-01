@@ -43,7 +43,27 @@ This creates `function.zip` ready for upload to AWS Lambda.
 
 None required - credentials are passed in the request body for security.
 
-## API Gateway Setup
+## AWS Lambda Function URL Setup (Recommended - Simpler than API Gateway)
+
+1. Go to your Lambda function in AWS Console
+2. Click "Configuration" tab → "Function URL"
+3. Click "Create function URL"
+4. Configure:
+   - **Auth type**: NONE (public access)
+   - **Invoke mode**: BUFFERED
+5. Click "Save"
+6. Under "CORS configuration", click "Edit" and configure:
+   ```json
+   {
+     "AllowOrigins": ["*"],
+     "AllowMethods": ["POST", "OPTIONS"],
+     "AllowHeaders": ["content-type"],
+     "MaxAge": 86400
+   }
+   ```
+7. Save the function URL (e.g., `https://xxxxx.lambda-url.us-east-1.on.aws/`)
+
+## Alternative: API Gateway Setup
 
 1. Create a REST API or HTTP API in API Gateway
 2. Create a POST method pointing to this Lambda function
@@ -51,6 +71,8 @@ None required - credentials are passed in the request body for security.
    - Access-Control-Allow-Origin: `*` (or your specific domain)
    - Access-Control-Allow-Headers: `Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token`
    - Access-Control-Allow-Methods: `OPTIONS,POST`
+4. Deploy the API to a stage (e.g., "prod")
+5. Note the Invoke URL
 
 ## Request Format
 
@@ -111,7 +133,7 @@ aws lambda create-function \
   --handler index.handler \
   --memory-size 1024 \
   --timeout 60 \
-  --role arn:aws:iam::YOUR_ACCOUNT:role/lambda-execution-role \
+  --role arn:aws:iam::288422528997:root/lambda-execution-role \
   --zip-file fileb://function.zip
 
 # Update function code

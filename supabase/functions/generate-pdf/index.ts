@@ -29,15 +29,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // Create Supabase client with service role for direct storage access
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     // Get request body
@@ -83,16 +78,34 @@ Deno.serve(async (req) => {
 
     // Process each expense sequentially
     let processedReceipts = 0;
-    const MAX_RECEIPTS = 100; // Limit to prevent timeout
+    const MAX_RECEIPTS = 50;
+    const MAX_RECEIPTS_PER_EXPENSE = 10;
 
     for (const expense of expenses as Expense[]) {
+      console.log(`Processing expense: ${expense.id}`);
+
       // Fetch receipts for this expense
-      const { data: receipts } = await supabaseClient
+      const { data: receipts, error: fetchError } = await supabaseClient
         .from("receipt")
         .select("*")
         .eq("expense_id", expense.id);
 
-      if (!receipts || receipts.length === 0) continue;
+      if (fetchError) {
+        console.error(
+          `Error fetching receipts for expense ${expense.id}:`,
+          fetchError,
+        );
+        continue;
+      }
+
+      if (!receipts || receipts.length === 0) {
+        console.log(`No receipts found for expense ${expense.id}`);
+        continue;
+      }
+
+      console.log(
+        `Found ${receipts.length} receipts for expense ${expense.id}`,
+      );
 
       // Calculate header height
       const headerHeight = 24;
@@ -116,99 +129,100 @@ Deno.serve(async (req) => {
       pdf.text(`Details: ${expense.details}`, margin, yPosition);
       yPosition += 10;
 
-      // Process each receipt sequentially
-      for (const receipt of receipts as Receipt[]) {
-        if (processedReceipts >= MAX_RECEIPTS) {
-          console.warn(`Reached maximum receipt limit of ${MAX_RECEIPTS}`);
-          break;
-        }
+      // Limit receipts to process
+      const receiptsToProcess = (receipts as Receipt[]).slice(
+        0,
+        Math.min(MAX_RECEIPTS_PER_EXPENSE, MAX_RECEIPTS - processedReceipts),
+      );
+
+      // Download all receipts in parallel using Promise.all
+      const downloadResults = await Promise.all(
+        receiptsToProcess.map(async (receipt) => {
+          try {
+            const { data: imageBlob, error: downloadError } =
+              await supabaseClient
+                .storage
+                .from("receipts")
+                .download(receipt.path);
+
+            if (downloadError || !imageBlob) {
+              console.warn(
+                `Failed to download ${receipt.path}:`,
+                downloadError,
+              );
+              return null;
+            }
+
+            // Skip very large images
+            const MAX_IMAGE_SIZE = 4 * 1024 * 1024; // 4MB
+            if (imageBlob.size > MAX_IMAGE_SIZE) {
+              console.warn(
+                `Skipping large image: ${receipt.path} (${imageBlob.size} bytes)`,
+              );
+              return null;
+            }
+
+            // Convert to arrayBuffer and base64
+            const arrayBuffer = await imageBlob.arrayBuffer();
+            const contentType = imageBlob.type || "image/jpeg";
+
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binaryString = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              const chunk = uint8Array.subarray(
+                i,
+                Math.min(i + chunkSize, uint8Array.length),
+              );
+              binaryString += String.fromCharCode(...chunk);
+            }
+            const base64 = btoa(binaryString);
+            const dataUrl = `data:${contentType};base64,${base64}`;
+
+            return { dataUrl, contentType };
+          } catch (error) {
+            console.error(`Error downloading receipt ${receipt.path}:`, error);
+            return null;
+          }
+        }),
+      );
+
+      // Add images to PDF sequentially (jsPDF is not thread-safe)
+      for (const result of downloadResults) {
+        if (!result) continue;
 
         try {
-          // Get signed URL for receipt
-          const { data: urlData } = await supabaseClient.storage
-            .from("receipts")
-            .createSignedUrl(receipt.path, 3600);
-
-          if (!urlData?.signedUrl) continue;
-
-          // Fetch image with timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-          const response = await fetch(urlData.signedUrl, {
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (!response.ok) continue;
-
-          const arrayBuffer = await response.arrayBuffer();
-          const contentType = response.headers.get("content-type") ||
-            "image/jpeg";
-
-          // Skip very large images to prevent memory issues
-          const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-          if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
-            console.warn(
-              `Skipping large image: ${receipt.path} (${arrayBuffer.byteLength} bytes)`,
-            );
-            continue;
-          }
-
-          // Convert to base64 in chunks to avoid stack overflow
-          const uint8Array = new Uint8Array(arrayBuffer);
-          let binaryString = "";
-          const chunkSize = 8192;
-          for (let i = 0; i < uint8Array.length; i += chunkSize) {
-            const chunk = uint8Array.subarray(i, i + chunkSize);
-            binaryString += String.fromCharCode(...chunk);
-          }
-          const base64 = btoa(binaryString);
-          const dataUrl = `data:${contentType};base64,${base64}`;
-
-          // Use smaller image dimensions to reduce PDF size and processing time
           const imgWidth = imageMaxWidth;
-          const imgHeight = 120; // Reduced from 150 for better performance
-
-          // Validate dimensions
-          if (!imgWidth || !imgHeight || imgWidth <= 0 || imgHeight <= 0) {
-            console.error(`Invalid image dimensions: ${imgWidth}x${imgHeight}`);
-            continue;
-          }
+          const imgHeight = 100;
 
           // Calculate available space on current page
           const availableHeight = pageHeight - yPosition - margin;
 
           // If image doesn't fit on current page, move to next page
-          if (imgHeight > availableHeight) {
-            if (yPosition > 40) {
-              pdf.addPage();
-              yPosition = 20;
-            }
+          if (imgHeight > availableHeight && yPosition > 40) {
+            pdf.addPage();
+            yPosition = 20;
           }
 
-          // Determine image format from data URL
-          const imageFormat = dataUrl.includes("image/png") ? "PNG" : "JPEG";
+          const imageFormat = result.dataUrl.includes("image/png")
+            ? "PNG"
+            : "JPEG";
 
-          // Add image to PDF with compression
           pdf.addImage(
-            dataUrl,
+            result.dataUrl,
             imageFormat,
             margin,
             yPosition,
             imgWidth,
             imgHeight,
             undefined,
-            "FAST", // Use fast compression to reduce processing time
+            "FAST",
           );
+
           yPosition += imgHeight + 10;
           processedReceipts++;
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            console.error("Image fetch timeout:", receipt.path);
-          } else {
-            console.error("Error processing receipt:", receipt.path, error);
-          }
+          console.error("Error adding image to PDF:", error);
         }
       }
 
@@ -217,13 +231,20 @@ Deno.serve(async (req) => {
       if (processedReceipts >= MAX_RECEIPTS) break;
     }
 
+    console.log(
+      `Finished processing. Total receipts added to PDF: ${processedReceipts}`,
+    );
+
     // Generate PDF as base64 using chunking to avoid stack overflow
     const pdfOutput = pdf.output("arraybuffer");
     const uint8Array = new Uint8Array(pdfOutput);
     let binaryString = "";
     const chunkSize = 8192;
     for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
+      const chunk = uint8Array.subarray(
+        i,
+        Math.min(i + chunkSize, uint8Array.length),
+      );
       binaryString += String.fromCharCode(...chunk);
     }
     const base64Pdf = btoa(binaryString);

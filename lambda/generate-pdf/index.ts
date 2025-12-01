@@ -3,8 +3,14 @@ import {
   APIGatewayProxyHandler,
   APIGatewayProxyResult,
 } from "aws-lambda";
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createClient } from "@supabase/supabase-js";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 
 interface Expense {
   id: string;
@@ -28,30 +34,17 @@ interface RequestBody {
   userToken: string;
 }
 
-// CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // In production, replace with your actual domain
-  "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  "Access-Control-Allow-Methods": "POST,OPTIONS",
-};
-
 export const handler: APIGatewayProxyHandler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
-  // Handle CORS preflight
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: "",
-    };
-  }
+  // CORS is handled by Lambda Function URL configuration
+  // No need to handle OPTIONS or add CORS headers in code
 
   try {
     if (!event.body) {
       return {
         statusCode: 400,
-        headers: corsHeaders,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ error: "Missing request body" }),
       };
     }
@@ -68,7 +61,7 @@ export const handler: APIGatewayProxyHandler = async (
     if (!expenses || expenses.length === 0) {
       return {
         statusCode: 400,
-        headers: corsHeaders,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ error: "No expenses provided" }),
       };
     }
@@ -76,7 +69,7 @@ export const handler: APIGatewayProxyHandler = async (
     if (!supabaseUrl || !supabaseAnonKey || !userToken) {
       return {
         statusCode: 400,
-        headers: corsHeaders,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ error: "Missing Supabase credentials" }),
       };
     }
@@ -119,6 +112,7 @@ export const handler: APIGatewayProxyHandler = async (
     // Process each expense
     let processedReceipts = 0;
     const MAX_RECEIPTS = 150; // Increased limit for Lambda
+    const MAX_RECEIPTS_PER_EXPENSE = 20;
 
     for (const expense of expenses) {
       // Fetch receipts for this expense
@@ -151,83 +145,90 @@ export const handler: APIGatewayProxyHandler = async (
       pdf.text(`Details: ${expense.details}`, margin, yPosition);
       yPosition += 10;
 
-      // Process each receipt
-      for (const receipt of receipts as Receipt[]) {
-        if (processedReceipts >= MAX_RECEIPTS) {
-          console.warn(`Reached maximum receipt limit of ${MAX_RECEIPTS}`);
-          break;
-        }
+      // Limit receipts to process
+      const receiptsToProcess = (receipts as Receipt[]).slice(
+        0,
+        Math.min(MAX_RECEIPTS_PER_EXPENSE, MAX_RECEIPTS - processedReceipts),
+      );
+
+      // Download all receipts in parallel using Promise.all
+      const downloadResults = await Promise.all(
+        receiptsToProcess.map(async (receipt) => {
+          try {
+            // Get signed URL for receipt
+            const { data: urlData } = await supabaseClient.storage
+              .from("receipts")
+              .createSignedUrl(receipt.path, 3600);
+
+            if (!urlData?.signedUrl) return null;
+
+            // Fetch image with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            const response = await fetch(urlData.signedUrl, {
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) return null;
+
+            const arrayBuffer = await response.arrayBuffer();
+            const contentType = response.headers.get("content-type") ||
+              "image/jpeg";
+
+            // Skip very large images
+            const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+            if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
+              console.warn(`Skipping large image: ${receipt.path}`);
+              return null;
+            }
+
+            // Convert to base64 in chunks
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binaryString = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              const chunk = uint8Array.subarray(
+                i,
+                Math.min(i + chunkSize, uint8Array.length),
+              );
+              binaryString += String.fromCharCode(...chunk);
+            }
+            const base64 = btoa(binaryString);
+            const dataUrl = `data:${contentType};base64,${base64}`;
+
+            return { dataUrl, contentType };
+          } catch (error) {
+            console.error(`Error downloading receipt ${receipt.path}:`, error);
+            return null;
+          }
+        }),
+      );
+
+      // Add images to PDF sequentially (jsPDF is not thread-safe)
+      for (const result of downloadResults) {
+        if (!result) continue;
 
         try {
-          // Get signed URL for receipt
-          const { data: urlData } = await supabaseClient.storage
-            .from("receipts")
-            .createSignedUrl(receipt.path, 3600);
-
-          if (!urlData?.signedUrl) continue;
-
-          // Fetch image with timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for Lambda
-
-          const response = await fetch(urlData.signedUrl, {
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (!response.ok) continue;
-
-          const arrayBuffer = await response.arrayBuffer();
-          const contentType = response.headers.get("content-type") ||
-            "image/jpeg";
-
-          // Skip very large images
-          const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for Lambda
-          if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
-            console.warn(
-              `Skipping large image: ${receipt.path} (${arrayBuffer.byteLength} bytes)`,
-            );
-            continue;
-          }
-
-          // Convert to base64 in chunks
-          const uint8Array = new Uint8Array(arrayBuffer);
-          let binaryString = "";
-          const chunkSize = 8192;
-          for (let i = 0; i < uint8Array.length; i += chunkSize) {
-            const chunk = uint8Array.subarray(i, i + chunkSize);
-            binaryString += String.fromCharCode(...chunk);
-          }
-          const base64 = btoa(binaryString);
-          const dataUrl = `data:${contentType};base64,${base64}`;
-
-          // Image dimensions
           const imgWidth = imageMaxWidth;
           const imgHeight = 120;
-
-          // Validate dimensions
-          if (!imgWidth || !imgHeight || imgWidth <= 0 || imgHeight <= 0) {
-            console.error(`Invalid image dimensions: ${imgWidth}x${imgHeight}`);
-            continue;
-          }
 
           // Calculate available space on current page
           const availableHeight = pageHeight - yPosition - margin;
 
           // If image doesn't fit on current page, move to next page
-          if (imgHeight > availableHeight) {
-            if (yPosition > 40) {
-              pdf.addPage();
-              yPosition = 20;
-            }
+          if (imgHeight > availableHeight && yPosition > 40) {
+            pdf.addPage();
+            yPosition = 20;
           }
 
-          // Determine image format from data URL
-          const imageFormat = dataUrl.includes("image/png") ? "PNG" : "JPEG";
+          const imageFormat = result.dataUrl.includes("image/png")
+            ? "PNG"
+            : "JPEG";
 
-          // Add image to PDF
           pdf.addImage(
-            dataUrl,
+            result.dataUrl,
             imageFormat,
             margin,
             yPosition,
@@ -236,14 +237,11 @@ export const handler: APIGatewayProxyHandler = async (
             undefined,
             "FAST",
           );
+
           yPosition += imgHeight + 10;
           processedReceipts++;
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            console.error("Image fetch timeout:", receipt.path);
-          } else {
-            console.error("Error processing receipt:", receipt.path, error);
-          }
+          console.error("Error adding image to PDF:", error);
         }
       }
 
@@ -252,25 +250,45 @@ export const handler: APIGatewayProxyHandler = async (
       if (processedReceipts >= MAX_RECEIPTS) break;
     }
 
-    // Generate PDF as base64
+    // Generate PDF buffer
     const pdfOutput = pdf.output("arraybuffer");
-    const uint8Array = new Uint8Array(pdfOutput);
-    let binaryString = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      binaryString += String.fromCharCode(...chunk);
-    }
-    const base64Pdf = Buffer.from(pdfOutput).toString("base64");
+    const pdfBuffer = Buffer.from(pdfOutput);
+
+    // Upload to S3
+    const s3Client = new S3Client({
+      region: process.env.AWS_REGION || "us-east-1",
+    });
+    const bucketName = process.env.PDF_BUCKET_NAME || "reimburse-pdfs";
+    const fileName = `receipts/${Date.now()}-${
+      selectedMonth.replace(/\s+/g, "-")
+    }.pdf`;
+
+    const putCommand = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: fileName,
+      Body: pdfBuffer,
+      ContentType: "application/pdf",
+    });
+
+    await s3Client.send(putCommand);
+
+    // Generate presigned URL for downloading (GET) - valid for 1 hour
+    const getCommand = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: fileName,
+    });
+
+    const presignedUrl = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 3600, // 1 hour
+    });
 
     return {
       statusCode: 200,
       headers: {
-        ...corsHeaders,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        pdf: base64Pdf,
+        downloadUrl: presignedUrl,
         filename: `amplitude-receipts-${selectedMonth.replace(" ", "-")}.pdf`,
       }),
     };
@@ -282,7 +300,7 @@ export const handler: APIGatewayProxyHandler = async (
 
     return {
       statusCode: 500,
-      headers: corsHeaders,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ error: errorMessage }),
     };
   }
