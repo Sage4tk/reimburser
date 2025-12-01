@@ -109,18 +109,97 @@ export const handler: APIGatewayProxyHandler = async (
     }
     yPosition += 8;
 
-    // Process each expense
+    // Fetch ALL receipts for ALL expenses in one query
+    const expenseIds = expenses.map((e) => e.id);
+    const { data: allReceipts } = await supabaseClient
+      .from("receipt")
+      .select("*")
+      .in("expense_id", expenseIds);
+
+    if (!allReceipts || allReceipts.length === 0) {
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "No receipts found for expenses" }),
+      };
+    }
+
+    // Group receipts by expense_id
+    const receiptsByExpense = new Map<string, Receipt[]>();
+    for (const receipt of allReceipts as Receipt[]) {
+      if (!receiptsByExpense.has(receipt.expense_id)) {
+        receiptsByExpense.set(receipt.expense_id, []);
+      }
+      receiptsByExpense.get(receipt.expense_id)!.push(receipt);
+    }
+
+    // Download ALL images in parallel upfront
+    const MAX_RECEIPTS = 150;
+    const receiptsToDownload = (allReceipts as Receipt[]).slice(
+      0,
+      MAX_RECEIPTS,
+    );
+
+    console.log(
+      `Downloading ${receiptsToDownload.length} receipts in parallel...`,
+    );
+    const imageCache = new Map<
+      string,
+      { dataUrl: string; contentType: string }
+    >();
+
+    const downloadPromises = receiptsToDownload.map(async (receipt) => {
+      try {
+        const { data: urlData } = await supabaseClient.storage
+          .from("receipts")
+          .createSignedUrl(receipt.path, 3600);
+
+        if (!urlData?.signedUrl) return;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(urlData.signedUrl, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) return;
+
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get("content-type") ||
+          "image/jpeg";
+
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+        if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) return;
+
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binaryString = "";
+        const chunkSize = 8192;
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(
+            i,
+            Math.min(i + chunkSize, uint8Array.length),
+          );
+          binaryString += String.fromCharCode(...chunk);
+        }
+        const base64 = btoa(binaryString);
+        const dataUrl = `data:${contentType};base64,${base64}`;
+
+        imageCache.set(receipt.id, { dataUrl, contentType });
+      } catch (error) {
+        console.error(`Error downloading receipt ${receipt.path}:`, error);
+      }
+    });
+
+    await Promise.all(downloadPromises);
+    console.log(`Downloaded ${imageCache.size} images successfully`);
+
+    // Now generate PDF with cached images
     let processedReceipts = 0;
-    const MAX_RECEIPTS = 150; // Increased limit for Lambda
-    const MAX_RECEIPTS_PER_EXPENSE = 20;
 
     for (const expense of expenses) {
-      // Fetch receipts for this expense
-      const { data: receipts } = await supabaseClient
-        .from("receipt")
-        .select("*")
-        .eq("expense_id", expense.id);
-
+      const receipts = receiptsByExpense.get(expense.id);
       if (!receipts || receipts.length === 0) continue;
 
       // Calculate header height
@@ -145,70 +224,10 @@ export const handler: APIGatewayProxyHandler = async (
       pdf.text(`Details: ${expense.details}`, margin, yPosition);
       yPosition += 10;
 
-      // Limit receipts to process
-      const receiptsToProcess = (receipts as Receipt[]).slice(
-        0,
-        Math.min(MAX_RECEIPTS_PER_EXPENSE, MAX_RECEIPTS - processedReceipts),
-      );
-
-      // Download all receipts in parallel using Promise.all
-      const downloadResults = await Promise.all(
-        receiptsToProcess.map(async (receipt) => {
-          try {
-            // Get signed URL for receipt
-            const { data: urlData } = await supabaseClient.storage
-              .from("receipts")
-              .createSignedUrl(receipt.path, 3600);
-
-            if (!urlData?.signedUrl) return null;
-
-            // Fetch image with timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-            const response = await fetch(urlData.signedUrl, {
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            if (!response.ok) return null;
-
-            const arrayBuffer = await response.arrayBuffer();
-            const contentType = response.headers.get("content-type") ||
-              "image/jpeg";
-
-            // Skip very large images
-            const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-            if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
-              console.warn(`Skipping large image: ${receipt.path}`);
-              return null;
-            }
-
-            // Convert to base64 in chunks
-            const uint8Array = new Uint8Array(arrayBuffer);
-            let binaryString = "";
-            const chunkSize = 8192;
-            for (let i = 0; i < uint8Array.length; i += chunkSize) {
-              const chunk = uint8Array.subarray(
-                i,
-                Math.min(i + chunkSize, uint8Array.length),
-              );
-              binaryString += String.fromCharCode(...chunk);
-            }
-            const base64 = btoa(binaryString);
-            const dataUrl = `data:${contentType};base64,${base64}`;
-
-            return { dataUrl, contentType };
-          } catch (error) {
-            console.error(`Error downloading receipt ${receipt.path}:`, error);
-            return null;
-          }
-        }),
-      );
-
-      // Add images to PDF sequentially (jsPDF is not thread-safe)
-      for (const result of downloadResults) {
-        if (!result) continue;
+      // Add images from cache
+      for (const receipt of receipts) {
+        const cachedImage = imageCache.get(receipt.id);
+        if (!cachedImage) continue;
 
         try {
           const imgWidth = imageMaxWidth;
@@ -223,12 +242,12 @@ export const handler: APIGatewayProxyHandler = async (
             yPosition = 20;
           }
 
-          const imageFormat = result.dataUrl.includes("image/png")
+          const imageFormat = cachedImage.dataUrl.includes("image/png")
             ? "PNG"
             : "JPEG";
 
           pdf.addImage(
-            result.dataUrl,
+            cachedImage.dataUrl,
             imageFormat,
             margin,
             yPosition,
