@@ -273,8 +273,68 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     setExistingReceipts([]);
   };
 
+  // Compress and resize image before upload
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          // Max dimensions
+          const MAX_WIDTH = 1366;
+          const MAX_HEIGHT = 1366;
+
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions while maintaining aspect ratio
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = (height * MAX_WIDTH) / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = (width * MAX_HEIGHT) / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // Draw and compress
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(compressedFile);
+              } else {
+                reject(new Error("Canvas to Blob conversion failed"));
+              }
+            },
+            "image/jpeg",
+            0.8 // 80% quality
+          );
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
   // Handle file selection (multiple files)
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
 
     if (files.length === 0) return;
@@ -287,20 +347,31 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         setError(`${file.name} is not an image file`);
         continue;
       }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError(`${file.name} is too large (max 5MB)`);
-        continue;
+
+      try {
+        // Compress image
+        const compressedFile = await compressImage(file);
+
+        // Validate compressed file size (max 5MB)
+        if (compressedFile.size > 5 * 1024 * 1024) {
+          setError(
+            `${file.name} is too large even after compression (max 5MB)`
+          );
+          continue;
+        }
+
+        validFiles.push(compressedFile);
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setReceiptPreviews((prev) => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        console.error("Error compressing image:", error);
+        setError(`Failed to process ${file.name}`);
       }
-
-      validFiles.push(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setReceiptPreviews((prev) => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
     }
 
     if (validFiles.length > 0) {
