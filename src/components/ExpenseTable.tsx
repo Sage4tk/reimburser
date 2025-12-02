@@ -142,6 +142,8 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     Array<{ id: string; path: string; url: string }>
   >([]);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<string>("");
 
   // Get current month in YYYY-MM format
   const getCurrentMonth = () => {
@@ -929,18 +931,20 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       return;
     }
 
-    setUploadingReceipt(true);
+    setPdfGenerating(true);
+    setPdfProgress("Initializing...");
     setError(null);
 
     try {
       // Get the current session token
+      setPdfProgress("Authenticating...");
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
         setError("You must be logged in to export receipts");
-        setUploadingReceipt(false);
+        setPdfGenerating(false);
         return;
       }
 
@@ -948,11 +952,12 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       const lambdaUrl = import.meta.env.VITE_LAMBDA_PDF_URL;
       if (!lambdaUrl) {
         setError("Lambda URL not configured");
-        setUploadingReceipt(false);
+        setPdfGenerating(false);
         return;
       }
 
       // Call AWS Lambda
+      setPdfProgress("Generating PDF...");
       const response = await fetch(lambdaUrl, {
         method: "POST",
         headers: {
@@ -974,7 +979,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         setError(
           `Failed to generate PDF: ${errorData.error || response.statusText}`
         );
-        setUploadingReceipt(false);
+        setPdfGenerating(false);
         return;
       }
 
@@ -983,7 +988,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       if (!data || !data.downloadUrl) {
         setError("No PDF download URL received from server");
-        setUploadingReceipt(false);
+        setPdfGenerating(false);
         return;
       }
 
@@ -996,6 +1001,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         try {
           console.log("Mobile detected - fetching PDF from:", data.downloadUrl);
 
+          setPdfProgress("Downloading PDF...");
           // Fetch the PDF from S3
           const pdfResponse = await fetch(data.downloadUrl);
           console.log(
@@ -1006,13 +1012,14 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
           if (!pdfResponse.ok) {
             setError(`Failed to download PDF: ${pdfResponse.statusText}`);
-            setUploadingReceipt(false);
+            setPdfGenerating(false);
             return;
           }
 
           const blob = await pdfResponse.blob();
           console.log("PDF blob size:", blob.size, "bytes, type:", blob.type);
 
+          setPdfProgress("Opening PDF...");
           const blobUrl = window.URL.createObjectURL(blob);
 
           // Try to open in new window first (works better on mobile)
@@ -1043,7 +1050,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
                 : "Unknown error"
             }`
           );
-          setUploadingReceipt(false);
+          setPdfGenerating(false);
           return;
         }
       } else {
@@ -1058,7 +1065,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       }
 
       setError(null);
-      setUploadingReceipt(false);
+      setPdfGenerating(false);
     } catch (error) {
       console.error("Error generating PDF:", error);
       setError(
@@ -1066,10 +1073,9 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
-      setUploadingReceipt(false);
+      setPdfGenerating(false);
     }
   };
-
   const handleDelete = async () => {
     if (!deleteExpenseId) return;
 
@@ -2832,6 +2838,25 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
           </Drawer>
         </>
       )}
+
+      {/* PDF Generation Loading Dialog */}
+      <Dialog open={pdfGenerating} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <div className="flex flex-col items-center justify-center gap-4 py-8">
+            <Spinner className="h-12 w-12" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">Generating PDF</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                {pdfProgress || "Please wait..."}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
