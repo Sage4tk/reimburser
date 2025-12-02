@@ -986,14 +986,45 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         return;
       }
 
-      // Download PDF from S3 URL
-      const link = document.createElement("a");
-      link.href = data.downloadUrl;
-      link.download = data.filename || "receipts.pdf";
-      link.target = "_blank"; // Open in new tab as fallback
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // For mobile, fetch the PDF and create a blob URL for better compatibility
+      const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(
+        navigator.userAgent
+      );
+
+      if (isMobileDevice) {
+        // Fetch the PDF from S3
+        const pdfResponse = await fetch(data.downloadUrl);
+        if (!pdfResponse.ok) {
+          setError("Failed to download PDF");
+          return;
+        }
+
+        const blob = await pdfResponse.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+
+        // Try to open in new window first (works better on mobile)
+        const newWindow = window.open(blobUrl, "_blank");
+
+        // Fallback to download if popup was blocked
+        if (!newWindow) {
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = data.filename || "receipts.pdf";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        }
+      } else {
+        // Desktop: Direct link download
+        const link = document.createElement("a");
+        link.href = data.downloadUrl;
+        link.download = data.filename || "receipts.pdf";
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
 
       setError(null);
     } catch (error) {
