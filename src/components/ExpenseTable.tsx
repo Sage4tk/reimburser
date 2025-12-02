@@ -930,6 +930,8 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     }
 
     setUploadingReceipt(true);
+    setError(null);
+
     try {
       // Get the current session token
       const {
@@ -938,6 +940,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       if (!session) {
         setError("You must be logged in to export receipts");
+        setUploadingReceipt(false);
         return;
       }
 
@@ -945,17 +948,10 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       const lambdaUrl = import.meta.env.VITE_LAMBDA_PDF_URL;
       if (!lambdaUrl) {
         setError("Lambda URL not configured");
+        setUploadingReceipt(false);
         return;
       }
 
-      console.log("Calling Lambda at:", {
-        expenses: expenses,
-        selectedMonth: formatMonthDisplay(selectedMonth),
-        userName: userName || null,
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        userToken: session.access_token,
-      });
       // Call AWS Lambda
       const response = await fetch(lambdaUrl, {
         method: "POST",
@@ -974,15 +970,20 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Lambda error:", errorData);
-        setError("Failed to generate PDF. Please try again.");
+        console.error("Lambda error response:", response.status, errorData);
+        setError(
+          `Failed to generate PDF: ${errorData.error || response.statusText}`
+        );
+        setUploadingReceipt(false);
         return;
       }
 
       const data = await response.json();
+      console.log("PDF generation response:", data);
 
       if (!data || !data.downloadUrl) {
         setError("No PDF download URL received from server");
+        setUploadingReceipt(false);
         return;
       }
 
@@ -992,28 +993,58 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       );
 
       if (isMobileDevice) {
-        // Fetch the PDF from S3
-        const pdfResponse = await fetch(data.downloadUrl);
-        if (!pdfResponse.ok) {
-          setError("Failed to download PDF");
+        try {
+          console.log("Mobile detected - fetching PDF from:", data.downloadUrl);
+
+          // Fetch the PDF from S3
+          const pdfResponse = await fetch(data.downloadUrl);
+          console.log(
+            "PDF fetch response:",
+            pdfResponse.status,
+            pdfResponse.statusText
+          );
+
+          if (!pdfResponse.ok) {
+            setError(`Failed to download PDF: ${pdfResponse.statusText}`);
+            setUploadingReceipt(false);
+            return;
+          }
+
+          const blob = await pdfResponse.blob();
+          console.log("PDF blob size:", blob.size, "bytes, type:", blob.type);
+
+          const blobUrl = window.URL.createObjectURL(blob);
+
+          // Try to open in new window first (works better on mobile)
+          const newWindow = window.open(blobUrl, "_blank");
+
+          // Fallback to download if popup was blocked
+          if (!newWindow || newWindow.closed) {
+            console.log("Popup blocked, using download fallback");
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = data.filename || "receipts.pdf";
+            link.style.display = "none";
+            document.body.appendChild(link);
+
+            // Trigger download with a slight delay for mobile compatibility
+            setTimeout(() => {
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+            }, 100);
+          }
+        } catch (mobileError) {
+          console.error("Mobile PDF download error:", mobileError);
+          setError(
+            `Mobile download failed: ${
+              mobileError instanceof Error
+                ? mobileError.message
+                : "Unknown error"
+            }`
+          );
+          setUploadingReceipt(false);
           return;
-        }
-
-        const blob = await pdfResponse.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-
-        // Try to open in new window first (works better on mobile)
-        const newWindow = window.open(blobUrl, "_blank");
-
-        // Fallback to download if popup was blocked
-        if (!newWindow) {
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = data.filename || "receipts.pdf";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(blobUrl);
         }
       } else {
         // Desktop: Direct link download
@@ -1027,10 +1058,14 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       }
 
       setError(null);
+      setUploadingReceipt(false);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setError("Failed to generate PDF. Please try again.");
-    } finally {
+      setError(
+        `Failed to generate PDF: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
       setUploadingReceipt(false);
     }
   };
