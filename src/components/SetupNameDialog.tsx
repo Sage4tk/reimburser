@@ -23,15 +23,18 @@ import {
 import { Spinner } from "./ui/spinner";
 import { useIsMobile } from "../hooks/use-mobile";
 
-interface SetupNameDialogProps {
+interface ChangePasswordDialogProps {
   onComplete: () => void;
 }
 
-export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
+export function ChangePasswordDialog({
+  onComplete,
+}: ChangePasswordDialogProps) {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
@@ -57,8 +60,8 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
         return;
       }
 
-      // Show dialog if no profile or no full name
-      if (!data || !data.full_name) {
+      // Show dialog if initial_login is true
+      if (data && data.initial_login) {
         setIsOpen(true);
       }
     } catch (err) {
@@ -69,8 +72,18 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
   };
 
   const handleSave = async () => {
-    if (!user || !fullName.trim()) {
-      setError("Please enter your full name");
+    if (!user || !newPassword.trim()) {
+      setError("Please enter a new password");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
@@ -78,18 +91,26 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
     setError(null);
 
     try {
-      const { error } = await supabase.from("user_profile").insert({
-        user_id: user.id,
-        full_name: fullName.trim(),
+      // Update password
+      const { error: passwordError } = await supabase.auth.updateUser({
+        password: newPassword,
       });
 
-      if (error) throw error;
+      if (passwordError) throw passwordError;
+
+      // Update initial_login flag
+      const { error: profileError } = await supabase
+        .from("user_profile")
+        .update({ initial_login: false })
+        .eq("user_id", user.id);
+
+      if (profileError) throw profileError;
 
       setIsOpen(false);
       onComplete();
     } catch (err: any) {
-      console.error("Error saving profile:", err);
-      setError(err.message || "Failed to save profile");
+      console.error("Error changing password:", err);
+      setError(err.message || "Failed to change password");
     } finally {
       setLoading(false);
     }
@@ -99,23 +120,37 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
     return null;
   }
 
-  const ProfileForm = () => (
+  const passwordFormContent = (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
-        <Label htmlFor="setup_full_name">Full Name</Label>
+        <Label htmlFor="new_password">New Password</Label>
         <Input
-          id="setup_full_name"
-          value={fullName}
+          id="new_password"
+          type="password"
+          value={newPassword}
           onChange={(e) => {
-            setFullName(e.target.value);
+            setNewPassword(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="Enter your full name"
+          placeholder="Enter new password"
           disabled={loading}
-          autoFocus
         />
-        {error && <p className="text-sm text-red-500">{error}</p>}
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor="confirm_password">Confirm Password</Label>
+        <Input
+          id="confirm_password"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => {
+            setConfirmPassword(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="Confirm new password"
+          disabled={loading}
+        />
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );
 
@@ -125,13 +160,13 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
         <DrawerContent className="max-h-[95vh] flex flex-col">
           <div className="px-4 flex flex-col flex-1 min-h-0">
             <DrawerHeader className="shrink-0">
-              <DrawerTitle>Welcome! Set up your profile</DrawerTitle>
+              <DrawerTitle>Change Your Password</DrawerTitle>
               <DrawerDescription>
-                Please enter your full name to get started
+                For security reasons, please change your password on first login
               </DrawerDescription>
             </DrawerHeader>
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <ProfileForm />
+              {passwordFormContent}
             </div>
             <DrawerFooter className="pb-8 shrink-0">
               <Button onClick={handleSave} disabled={loading}>
@@ -158,12 +193,12 @@ export function SetupNameDialog({ onComplete }: SetupNameDialogProps) {
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Welcome! Set up your profile</DialogTitle>
+          <DialogTitle>Change Your Password</DialogTitle>
           <DialogDescription>
-            Please enter your full name to get started
+            For security reasons, please change your password on first login
           </DialogDescription>
         </DialogHeader>
-        <ProfileForm />
+        {passwordFormContent}
         <DialogFooter>
           <Button onClick={handleSave} disabled={loading}>
             {loading ? (

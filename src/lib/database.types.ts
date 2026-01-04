@@ -81,23 +81,29 @@ export type Database = {
       }
       user_profile: {
         Row: {
+          admin: boolean
           created_at: string
           full_name: string | null
           id: string
+          initial_login: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
+          admin?: boolean
           created_at?: string
           full_name?: string | null
           id?: string
+          initial_login?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
+          admin?: boolean
           created_at?: string
           full_name?: string | null
           id?: string
+          initial_login?: boolean
           updated_at?: string
           user_id?: string
         }

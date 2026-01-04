@@ -3,7 +3,7 @@ import { useAuthStore } from "../store/authStore";
 import { Button } from "./ui/button";
 import { ExpenseTable } from "./ExpenseTable";
 import { UserProfile } from "./UserProfile";
-import { SetupNameDialog } from "./SetupNameDialog";
+import { ChangePasswordDialog } from "./SetupNameDialog";
 import supabase from "../lib/supabase";
 
 export function Dashboard() {
@@ -33,14 +33,15 @@ export function Dashboard() {
     }
   };
 
-  const handleNameSetupComplete = () => {
+  const handlePasswordChangeComplete = () => {
+    // Refresh after password change
     fetchUserName();
   };
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-8">
       {profileChecked && (
-        <SetupNameDialog onComplete={handleNameSetupComplete} />
+        <ChangePasswordDialog onComplete={handlePasswordChangeComplete} />
       )}
 
       <div className="mx-auto max-w-7xl">
