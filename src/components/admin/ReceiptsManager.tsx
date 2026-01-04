@@ -48,6 +48,10 @@ export function ReceiptsManager() {
   const [userExpenses, setUserExpenses] = useState<UserExpense[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Get current view state from URL
   const selectedJobNo = searchParams.get("job") || "";
   const selectedMonth = searchParams.get("month") || "";
@@ -61,6 +65,7 @@ export function ReceiptsManager() {
     : "jobs";
 
   useEffect(() => {
+    setCurrentPage(1); // Reset pagination on view change
     if (viewLevel === "jobs") {
       fetchJobGroups();
     } else if (viewLevel === "users" && selectedJobNo) {
@@ -104,7 +109,7 @@ export function ReceiptsManager() {
       });
 
       // Get unique user counts for each job
-      for (const [key, group] of groups.entries()) {
+      for (const [, group] of groups.entries()) {
         const { data: uniqueUsers } = await supabase
           .from("expense")
           .select("user_id", { count: "exact", head: false })
@@ -130,7 +135,7 @@ export function ReceiptsManager() {
     setSearchParams({ job: jobNo, month });
   };
 
-  const fetchUserExpenses = async (jobNo: string, month: string) => {
+  const fetchUserExpenses = async (jobNo: string, _month: string) => {
     setLoading(true);
 
     try {
@@ -272,6 +277,26 @@ export function ReceiptsManager() {
     }
   };
 
+  // Pagination calculations
+  const getCurrentData = () => {
+    if (viewLevel === "jobs") return jobGroups;
+    if (viewLevel === "users") return userExpenses;
+    if (viewLevel === "receipts") return receipts;
+    return [];
+  };
+
+  const currentData = getCurrentData();
+  const totalPages = Math.ceil(currentData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedJobs = jobGroups.slice(startIndex, endIndex);
+  const paginatedUsers = userExpenses.slice(startIndex, endIndex);
+  const paginatedReceipts = receipts.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   if (loading && viewLevel === "jobs") {
     return (
       <div className="flex items-center justify-center py-8">
@@ -319,7 +344,7 @@ export function ReceiptsManager() {
                   </TableCell>
                 </TableRow>
               ) : (
-                jobGroups.map((group, index) => (
+                paginatedJobs.map((group, index) => (
                   <TableRow
                     key={`${group.month}-${group.job_no}-${index}`}
                     onDoubleClick={() =>
@@ -367,7 +392,7 @@ export function ReceiptsManager() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  userExpenses.map((user) => (
+                  paginatedUsers.map((user) => (
                     <TableRow
                       key={user.user_id}
                       onDoubleClick={() =>
@@ -401,7 +426,7 @@ export function ReceiptsManager() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {receipts.map((receipt) => (
+              {paginatedReceipts.map((receipt) => (
                 <div
                   key={receipt.id}
                   className="border rounded-lg p-4 space-y-2"
@@ -424,6 +449,44 @@ export function ReceiptsManager() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, currentData.length)}{" "}
+            of {currentData.length} items
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={currentPage === page ? "default" : "outline"}
+                size="sm"
+                onClick={() => handlePageChange(page)}
+              >
+                {page}
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 

@@ -3,17 +3,16 @@ import { useNavigate, useLocation } from "react-router";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "./ui/button";
 import { UserProfile } from "./UserProfile";
-import supabase from "../lib/supabase";
 import { cn } from "../lib/utils";
 import { ReceiptsManager } from "./admin/ReceiptsManager";
+import { UsersManager } from "./admin/UsersManager";
 
 type AdminTab = "dashboard" | "receipts" | "users";
 
 export function AdminPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut } = useAuthStore();
-  const [userName, setUserName] = useState<string | null>(null);
+  const { signOut } = useAuthStore();
 
   // Determine active tab from URL
   const getActiveTabFromPath = (): AdminTab => {
@@ -28,26 +27,6 @@ export function AdminPage() {
   useEffect(() => {
     setActiveTab(getActiveTabFromPath());
   }, [location.pathname]);
-
-  useEffect(() => {
-    fetchUserName();
-  }, [user]);
-
-  const fetchUserName = async () => {
-    if (!user) return;
-
-    try {
-      const { data } = await supabase
-        .from("user_profile")
-        .select("full_name")
-        .eq("user_id", user.id)
-        .single();
-
-      setUserName(data?.full_name || null);
-    } catch (err) {
-      console.error("Error fetching user name:", err);
-    }
-  };
 
   const handleTabChange = (tab: AdminTab) => {
     setActiveTab(tab);
@@ -68,14 +47,7 @@ export function AdminPage() {
       case "receipts":
         return <ReceiptsManager />;
       case "users":
-        return (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Users</h2>
-            <p className="text-muted-foreground">
-              User management goes here...
-            </p>
-          </div>
-        );
+        return <UsersManager />;
     }
   };
 
