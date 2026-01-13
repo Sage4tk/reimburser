@@ -6,6 +6,7 @@ import { UserProfile } from "./UserProfile";
 import { cn } from "../lib/utils";
 import { ReceiptsManager } from "./admin/ReceiptsManager";
 import { UsersManager } from "./admin/UsersManager";
+import { AdminDashboard } from "./admin/AdminDashboard";
 
 type AdminTab = "dashboard" | "receipts" | "users";
 
@@ -36,14 +37,7 @@ export function AdminPage() {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Dashboard</h2>
-            <p className="text-muted-foreground">
-              Dashboard content goes here...
-            </p>
-          </div>
-        );
+        return <AdminDashboard />;
       case "receipts":
         return <ReceiptsManager />;
       case "users":
