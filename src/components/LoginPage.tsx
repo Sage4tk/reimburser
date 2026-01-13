@@ -70,8 +70,11 @@ export function LoginPage() {
     setResetLoading(true);
 
     try {
+      // Use the current origin to construct the redirect URL
+      const redirectUrl = `${window.location.protocol}//${window.location.host}/reset-password`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (error) throw error;
