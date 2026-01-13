@@ -4,6 +4,7 @@ import { useAuthStore } from "./store/authStore";
 import { LoginPage } from "./components/LoginPage";
 import { Dashboard } from "./components/Dashboard";
 import { AdminPage } from "./components/AdminPage";
+import { ResetPassword } from "./components/ResetPassword";
 import { Spinner } from "./components/ui/spinner";
 
 function App() {
@@ -24,7 +25,12 @@ function App() {
   }
 
   if (!user) {
-    return <LoginPage />;
+    return (
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
   }
 
   return (
