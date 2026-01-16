@@ -15,7 +15,6 @@ import { Spinner } from "../ui/spinner";
 
 interface JobGroup {
   job_no: string;
-  month: string;
   expense_count: number;
   user_count: number;
 }
@@ -42,6 +41,7 @@ type ViewLevel = "jobs" | "users" | "receipts";
 export function ReceiptsManager() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [isPaginating, setIsPaginating] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<Receipt | null>(null);
 
   const [jobGroups, setJobGroups] = useState<JobGroup[]>([]);
@@ -50,11 +50,12 @@ export function ReceiptsManager() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
 
   // Get current view state from URL
   const selectedJobNo = searchParams.get("job") || "";
-  const selectedMonth = searchParams.get("month") || "";
   const selectedUserId = searchParams.get("user") || "";
   const selectedUserName = searchParams.get("userName") || "";
 
@@ -65,233 +66,180 @@ export function ReceiptsManager() {
     : "jobs";
 
   useEffect(() => {
-    setCurrentPage(1); // Reset pagination on view change
     if (viewLevel === "jobs") {
       fetchJobGroups();
     } else if (viewLevel === "users" && selectedJobNo) {
-      fetchUserExpenses(selectedJobNo, selectedMonth);
+      fetchUserExpenses(selectedJobNo);
     } else if (viewLevel === "receipts" && selectedUserId && selectedJobNo) {
       fetchReceipts(selectedUserId);
     }
-  }, [viewLevel, selectedJobNo, selectedMonth, selectedUserId]);
+  }, [viewLevel, selectedJobNo, selectedUserId, currentPage]);
 
   const fetchJobGroups = async () => {
-    setLoading(true);
+    const isInitialLoad = jobGroups.length === 0;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setIsPaginating(true);
+    }
     try {
-      const { data: expenses, error } = await supabase
-        .from("expense")
-        .select("job_no, date, user_id");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (error) throw error;
-
-      // Group by month and job_no
-      const groups = new Map<string, JobGroup>();
-
-      expenses?.forEach((expense) => {
-        const date = expense.date ? new Date(expense.date) : new Date();
-        const month = date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-        });
-        const key = `${month}-${expense.job_no}`;
-
-        if (groups.has(key)) {
-          const group = groups.get(key)!;
-          group.expense_count++;
-        } else {
-          groups.set(key, {
-            job_no: expense.job_no,
-            month,
-            expense_count: 1,
-            user_count: 0,
-          });
-        }
-      });
-
-      // Get unique user counts for each job
-      for (const [, group] of groups.entries()) {
-        const { data: uniqueUsers } = await supabase
-          .from("expense")
-          .select("user_id", { count: "exact", head: false })
-          .eq("job_no", group.job_no);
-
-        const uniqueUserIds = new Set(uniqueUsers?.map((e) => e.user_id));
-        group.user_count = uniqueUserIds.size;
+      if (!session) {
+        throw new Error("No active session");
       }
 
-      setJobGroups(
-        Array.from(groups.values()).sort(
-          (a, b) => new Date(b.month).getTime() - new Date(a.month).getTime()
-        )
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/admin-receipts?action=job-groups&page=${currentPage}&limit=${itemsPerPage}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+        }
       );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch job groups");
+      }
+
+      const { jobGroups, pagination } = await response.json();
+      setJobGroups(jobGroups);
+      setTotalPages(pagination.totalPages);
+      setTotalCount(pagination.totalCount);
     } catch (err) {
       console.error("Error fetching job groups:", err);
     } finally {
       setLoading(false);
+      setIsPaginating(false);
     }
   };
 
-  const handleJobDoubleClick = (jobNo: string, month: string) => {
-    setSearchParams({ job: jobNo, month });
+  const handleJobDoubleClick = (jobNo: string) => {
+    setCurrentPage(1);
+    setSearchParams({ job: jobNo });
   };
 
-  const fetchUserExpenses = async (jobNo: string, _month: string) => {
-    setLoading(true);
+  const fetchUserExpenses = async (jobNo: string) => {
+    const isInitialLoad = userExpenses.length === 0;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setIsPaginating(true);
+    }
 
     try {
-      // First get all expenses for this job
-      const { data: expenses, error: expenseError } = await supabase
-        .from("expense")
-        .select("user_id, food, taxi, others")
-        .eq("job_no", jobNo);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (expenseError) {
-        console.error("Error fetching expenses:", expenseError);
-        throw expenseError;
+      if (!session) {
+        throw new Error("No active session");
       }
 
-      console.log("Fetched expenses:", expenses);
-
-      if (!expenses || expenses.length === 0) {
-        setUserExpenses([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get unique user IDs
-      const userIds = [...new Set(expenses.map((e) => e.user_id))];
-      console.log("Unique user IDs:", userIds);
-
-      // Fetch user profiles
-      const { data: profiles, error: profileError } = await supabase
-        .from("user_profile")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-
-      if (profileError) {
-        console.error("Error fetching profiles:", profileError);
-      }
-
-      console.log("Fetched profiles:", profiles);
-
-      // Create a map of user profiles
-      const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, p.full_name]) || []
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/admin-receipts?action=user-expenses&jobNo=${jobNo}&page=${currentPage}&limit=${itemsPerPage}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+        }
       );
 
-      // Group by user
-      const userMap = new Map<string, UserExpense>();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch user expenses");
+      }
 
-      expenses.forEach((expense) => {
-        const total =
-          (expense.food || 0) + (expense.taxi || 0) + (expense.others || 0);
-
-        if (userMap.has(expense.user_id)) {
-          const user = userMap.get(expense.user_id)!;
-          user.expense_count++;
-          user.total_amount += total;
-        } else {
-          userMap.set(expense.user_id, {
-            user_id: expense.user_id,
-            full_name: profileMap.get(expense.user_id) || null,
-            expense_count: 1,
-            total_amount: total,
-          });
-        }
-      });
-
-      const userExpensesList = Array.from(userMap.values());
-      console.log("User expenses list:", userExpensesList);
-
-      setUserExpenses(userExpensesList);
+      const { userExpenses, pagination } = await response.json();
+      setUserExpenses(userExpenses);
+      setTotalPages(pagination.totalPages);
+      setTotalCount(pagination.totalCount);
     } catch (err) {
       console.error("Error in fetchUserExpenses:", err);
     } finally {
       setLoading(false);
+      setIsPaginating(false);
     }
   };
 
   const handleUserDoubleClick = (userId: string, userName: string | null) => {
+    setCurrentPage(1);
     setSearchParams({
       job: selectedJobNo,
-      month: selectedMonth,
       user: userId,
       userName: userName || "Unknown User",
     });
   };
 
   const fetchReceipts = async (userId: string) => {
-    setLoading(true);
+    const isInitialLoad = receipts.length === 0;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setIsPaginating(true);
+    }
 
     try {
-      const { data, error } = await supabase
-        .from("receipt")
-        .select(
-          `
-          id,
-          path,
-          created_at,
-          expense_id,
-          expense!inner(details, date, user_id, job_no)
-        `
-        )
-        .eq("expense.user_id", userId)
-        .eq("expense.job_no", selectedJobNo);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (error) throw error;
+      if (!session) {
+        throw new Error("No active session");
+      }
 
-      // Generate signed URLs for all receipt images
-      const receiptData: Receipt[] = await Promise.all(
-        (data || []).map(async (r: any) => {
-          const { data: urlData } = await supabase.storage
-            .from("receipts")
-            .createSignedUrl(r.path, 3600); // 1 hour expiry
-
-          return {
-            id: r.id,
-            path: r.path,
-            url: urlData?.signedUrl || "",
-            created_at: r.created_at,
-            expense_id: r.expense_id,
-            expense_details: r.expense?.details || "",
-            expense_date: r.expense?.date || null,
-          };
-        })
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/admin-receipts?action=receipts&userId=${userId}&jobNo=${selectedJobNo}&page=${currentPage}&limit=${itemsPerPage}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+        }
       );
 
-      setReceipts(receiptData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch receipts");
+      }
+
+      const { receipts, pagination } = await response.json();
+      setReceipts(receipts);
+      setTotalPages(pagination.totalPages);
+      setTotalCount(pagination.totalCount);
     } catch (err) {
       console.error("Error fetching receipts:", err);
     } finally {
       setLoading(false);
+      setIsPaginating(false);
     }
   };
 
   const handleBack = () => {
     if (viewLevel === "receipts") {
-      setSearchParams({ job: selectedJobNo, month: selectedMonth });
+      setSearchParams({ job: selectedJobNo });
       setReceipts([]);
+      setCurrentPage(1);
     } else if (viewLevel === "users") {
       setSearchParams({});
       setUserExpenses([]);
+      setCurrentPage(1);
     }
   };
-
-  // Pagination calculations
-  const getCurrentData = () => {
-    if (viewLevel === "jobs") return jobGroups;
-    if (viewLevel === "users") return userExpenses;
-    if (viewLevel === "receipts") return receipts;
-    return [];
-  };
-
-  const currentData = getCurrentData();
-  const totalPages = Math.ceil(currentData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedJobs = jobGroups.slice(startIndex, endIndex);
-  const paginatedUsers = userExpenses.slice(startIndex, endIndex);
-  const paginatedReceipts = receipts.slice(startIndex, endIndex);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -309,9 +257,8 @@ export function ReceiptsManager() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">
-          {viewLevel === "jobs" && "Receipts by Job & Month"}
-          {viewLevel === "users" &&
-            `Users for Job ${selectedJobNo} - ${selectedMonth}`}
+          {viewLevel === "jobs" && "Receipts by Job Number"}
+          {viewLevel === "users" && `Users for Job ${selectedJobNo}`}
           {viewLevel === "receipts" &&
             `Receipts for ${selectedUserName} - Job ${selectedJobNo}`}
         </h2>
@@ -327,7 +274,6 @@ export function ReceiptsManager() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Month</TableHead>
                 <TableHead>Job Number</TableHead>
                 <TableHead>Expenses</TableHead>
                 <TableHead>Users</TableHead>
@@ -337,22 +283,19 @@ export function ReceiptsManager() {
               {jobGroups.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={3}
                     className="text-center text-muted-foreground"
                   >
                     No receipts found
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedJobs.map((group, index) => (
+                jobGroups.map((group, index) => (
                   <TableRow
-                    key={`${group.month}-${group.job_no}-${index}`}
-                    onDoubleClick={() =>
-                      handleJobDoubleClick(group.job_no, group.month)
-                    }
+                    key={`${group.job_no}-${index}`}
+                    onDoubleClick={() => handleJobDoubleClick(group.job_no)}
                     className="cursor-pointer hover:bg-muted/50"
                   >
-                    <TableCell>{group.month}</TableCell>
                     <TableCell className="font-medium">
                       {group.job_no}
                     </TableCell>
@@ -392,7 +335,7 @@ export function ReceiptsManager() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedUsers.map((user) => (
+                  userExpenses.map((user) => (
                     <TableRow
                       key={user.user_id}
                       onDoubleClick={() =>
@@ -426,7 +369,7 @@ export function ReceiptsManager() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {paginatedReceipts.map((receipt) => (
+              {receipts.map((receipt) => (
                 <div
                   key={receipt.id}
                   className="border rounded-lg p-4 space-y-2"
@@ -456,33 +399,33 @@ export function ReceiptsManager() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, currentData.length)}{" "}
-            of {currentData.length} items
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{" "}
+            items
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || isPaginating}
             >
               Previous
             </Button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                size="sm"
-                onClick={() => handlePageChange(page)}
-              >
-                {page}
-              </Button>
-            ))}
+            <span className="text-sm text-muted-foreground flex items-center px-3">
+              {isPaginating ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <>
+                  Page {currentPage} of {totalPages}
+                </>
+              )}
+            </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || isPaginating}
             >
               Next
             </Button>

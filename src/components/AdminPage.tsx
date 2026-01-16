@@ -7,13 +7,50 @@ import { cn } from "../lib/utils";
 import { ReceiptsManager } from "./admin/ReceiptsManager";
 import { UsersManager } from "./admin/UsersManager";
 import { AdminDashboard } from "./admin/AdminDashboard";
+import supabase from "../lib/supabase";
+import { Skeleton } from "./ui/skeleton";
 
 type AdminTab = "dashboard" | "receipts" | "users";
 
 export function AdminPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuthStore();
+  const { user, signOut } = useAuthStore();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Check admin status
+  useEffect(() => {
+    checkAdminAccess();
+  }, [user]);
+
+  const checkAdminAccess = async () => {
+    if (!user) {
+      navigate("/");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select("admin")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error || !data?.admin) {
+        // Not an admin, redirect to home
+        navigate("/");
+        return;
+      }
+
+      setIsAdmin(true);
+    } catch (err) {
+      console.error("Error checking admin access:", err);
+      navigate("/");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Determine active tab from URL
   const getActiveTabFromPath = (): AdminTab => {
@@ -44,6 +81,41 @@ export function AdminPage() {
         return <UsersManager />;
     }
   };
+
+  // Show loading state while checking admin access
+  if (loading || isAdmin === null) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
+            <Skeleton className="h-6 w-32" />
+          </div>
+        </div>
+        <div className="flex">
+          <aside className="w-64 border-r bg-background min-h-[calc(100vh-4rem)] p-4">
+            <div className="space-y-1">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          </aside>
+          <main className="flex-1 p-8">
+            <Skeleton className="h-8 w-64 mb-6" />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-32" />
+              ))}
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // If not admin, don't render anything (redirect happens in useEffect)
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
