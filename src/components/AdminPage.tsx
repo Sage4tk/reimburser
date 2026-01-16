@@ -85,21 +85,21 @@ export function AdminPage() {
   // Show loading state while checking admin access
   if (loading || isAdmin === null) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="fixed top-0 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
             <Skeleton className="h-6 w-32" />
           </div>
         </div>
-        <div className="flex">
-          <aside className="w-64 border-r bg-background min-h-[calc(100vh-4rem)] p-4">
+        <div className="flex pt-16 flex-1">
+          <aside className="fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4">
             <div className="space-y-1">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
           </aside>
-          <main className="flex-1 p-8">
+          <main className="flex-1 ml-64 p-8 overflow-y-auto">
             <Skeleton className="h-8 w-64 mb-6" />
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
@@ -118,9 +118,9 @@ export function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header - Fixed */}
+      <div className="fixed top-0 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
           <div className="flex-1">
             <h1 className="text-xl font-bold">Admin Panel</h1>
@@ -137,9 +137,10 @@ export function AdminPage() {
         </div>
       </div>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 border-r bg-background min-h-[calc(100vh-4rem)] p-4">
+      {/* Add padding-top to account for fixed header */}
+      <div className="flex pt-16 flex-1">
+        {/* Sidebar - Fixed */}
+        <aside className="fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4 overflow-y-auto">
           <nav className="space-y-1">
             <button
               onClick={() => handleTabChange("dashboard")}
@@ -226,8 +227,8 @@ export function AdminPage() {
           </nav>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6 sm:p-8">
+        {/* Main Content - Scrollable with left margin to account for fixed sidebar */}
+        <main className="flex-1 ml-64 p-6 sm:p-8 overflow-y-auto">
           <div className="mx-auto max-w-7xl">{renderContent()}</div>
         </main>
       </div>
