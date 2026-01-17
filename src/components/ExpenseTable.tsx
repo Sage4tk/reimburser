@@ -252,13 +252,13 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     if (user) {
       fetchAvailableMonths();
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (selectedMonth) {
       fetchExpenses();
     }
-  }, [user, selectedMonth]);
+  }, [selectedMonth]);
 
   const resetForm = () => {
     setFormData({
