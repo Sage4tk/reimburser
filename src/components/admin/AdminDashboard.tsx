@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Button } from "../ui/button";
 import supabase from "../../lib/supabase";
 import {
   LineChart,
@@ -68,6 +70,7 @@ export function AdminDashboard() {
   const [userExpenses, setUserExpenses] = useState<UserExpense[]>([]);
   const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>([]);
   const [currentDate] = useState(new Date());
+  const [showReimbursementModal, setShowReimbursementModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -307,7 +310,10 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {latestExpense ? (
-              <div className="space-y-2">
+              <div
+                className="space-y-2 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                onClick={() => setShowReimbursementModal(true)}
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="text-xl font-bold">
@@ -326,18 +332,13 @@ export function AdminDashboard() {
                   </div>
                   {receiptUrl && (
                     <div className="ml-4">
-                      <a
-                        href={receiptUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block w-20 h-20 rounded-md overflow-hidden border hover:opacity-80 transition-opacity"
-                      >
+                      <div className="block w-20 h-20 rounded-md overflow-hidden border">
                         <img
                           src={receiptUrl}
                           alt="Receipt"
                           className="w-full h-full object-cover"
                         />
-                      </a>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -438,6 +439,115 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reimbursement Details Modal */}
+      <Dialog
+        open={showReimbursementModal}
+        onOpenChange={setShowReimbursementModal}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Reimbursement Details</DialogTitle>
+          </DialogHeader>
+          {latestExpense && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    User
+                  </label>
+                  <p className="text-base">
+                    {latestExpense.user_profile?.full_name || "Unknown User"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Job Number
+                  </label>
+                  <p className="text-base">{latestExpense.job_no}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Date
+                  </label>
+                  <p className="text-base">
+                    {latestExpense.date
+                      ? format(new Date(latestExpense.date), "MMM dd, yyyy")
+                      : "No date"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Created
+                  </label>
+                  <p className="text-base">
+                    {format(
+                      new Date(latestExpense.created_at),
+                      "MMM dd, yyyy HH:mm"
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Details
+                </label>
+                <p className="text-base">{latestExpense.details}</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Food
+                  </label>
+                  <p className="text-lg font-semibold">
+                    ${(latestExpense.food || 0).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Taxi
+                  </label>
+                  <p className="text-lg font-semibold">
+                    ${(latestExpense.taxi || 0).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Others
+                  </label>
+                  <p className="text-lg font-semibold">
+                    ${(latestExpense.others || 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Total Amount
+                </label>
+                <p className="text-2xl font-bold">
+                  ${getExpenseTotal(latestExpense).toFixed(2)}
+                </p>
+              </div>
+
+              {receiptUrl && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-2">
+                    Receipt
+                  </label>
+                  <img
+                    src={receiptUrl}
+                    alt="Receipt"
+                    className="w-full rounded-lg border max-h-96 object-contain"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
