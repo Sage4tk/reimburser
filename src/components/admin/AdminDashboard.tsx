@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Button } from "../ui/button";
 import supabase from "../../lib/supabase";
 import {
   LineChart,
@@ -18,7 +17,6 @@ import {
 } from "recharts";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { Skeleton } from "../ui/skeleton";
-import { AspectRatio } from "../ui/aspect-ratio";
 
 interface Expense {
   id: string;
