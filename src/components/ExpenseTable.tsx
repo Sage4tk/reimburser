@@ -150,7 +150,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
       2,
-      "0"
+      "0",
     )}`;
   };
 
@@ -202,7 +202,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         if (expense.date) {
           const date = new Date(expense.date);
           const monthKey = `${date.getFullYear()}-${String(
-            date.getMonth() + 1
+            date.getMonth() + 1,
           ).padStart(2, "0")}`;
           months.add(monthKey);
         }
@@ -326,7 +326,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
               }
             },
             "image/jpeg",
-            0.8 // 80% quality
+            0.8, // 80% quality
           );
         };
         img.onerror = reject;
@@ -357,7 +357,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         // Validate compressed file size (max 5MB)
         if (compressedFile.size > 5 * 1024 * 1024) {
           setError(
-            `${file.name} is too large even after compression (max 5MB)`
+            `${file.name} is too large even after compression (max 5MB)`,
           );
           continue;
         }
@@ -412,7 +412,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
             path: receipt.path,
             url: urlData?.signedUrl || "",
           };
-        })
+        }),
       );
 
       setExistingReceipts(receiptsWithUrls);
@@ -463,7 +463,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
   // Delete a receipt
   const handleDeleteReceipt = async (
     receiptId: string,
-    receiptPath: string
+    receiptPath: string,
   ) => {
     try {
       // Delete from storage
@@ -487,7 +487,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       // Update local state
       setExistingReceipts(
-        existingReceipts.filter((receipt) => receipt.id !== receiptId)
+        existingReceipts.filter((receipt) => receipt.id !== receiptId),
       );
     } catch (err) {
       console.error("Error deleting receipt:", err);
@@ -875,8 +875,8 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         alignment: ["E", "F", "G", "H"].includes(col)
           ? { horizontal: "right" }
           : col === "D"
-          ? { horizontal: "right" }
-          : undefined,
+            ? { horizontal: "right" }
+            : undefined,
         numFmt: ["E", "F", "G", "H"].includes(col) ? "0.00" : undefined,
       };
     });
@@ -917,7 +917,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
     // Generate filename with month
     const filename = `amplitude-expense-claim-${monthDisplay.replace(
       " ",
-      "-"
+      "-",
     )}.xlsx`;
 
     // Save file
@@ -977,7 +977,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Lambda error response:", response.status, errorData);
         setError(
-          `Failed to generate PDF: ${errorData.error || response.statusText}`
+          `Failed to generate PDF: ${errorData.error || response.statusText}`,
         );
         setPdfGenerating(false);
         return;
@@ -994,7 +994,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
       // For mobile, fetch the PDF and create a blob URL for better compatibility
       const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(
-        navigator.userAgent
+        navigator.userAgent,
       );
 
       if (isMobileDevice) {
@@ -1007,7 +1007,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
           console.log(
             "PDF fetch response:",
             pdfResponse.status,
-            pdfResponse.statusText
+            pdfResponse.statusText,
           );
 
           if (!pdfResponse.ok) {
@@ -1048,7 +1048,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
               mobileError instanceof Error
                 ? mobileError.message
                 : "Unknown error"
-            }`
+            }`,
           );
           setPdfGenerating(false);
           return;
@@ -1071,7 +1071,7 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
       setError(
         `Failed to generate PDF: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
       setPdfGenerating(false);
     }
@@ -1216,272 +1216,352 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
                       Add Expense
                     </Button>
                   </DrawerTrigger>
-                  <DrawerContent className="max-h-[95vh] flex flex-col">
-                    <form
-                      onSubmit={handleAdd}
-                      className="px-4 flex flex-col flex-1 min-h-0"
-                    >
-                      <DrawerHeader className="shrink-0">
-                        <DrawerTitle>Add New Expense</DrawerTitle>
-                        <DrawerDescription>
+                  <DrawerContent className="h-[92vh] flex flex-col">
+                    <form onSubmit={handleAdd} className="flex flex-col h-full">
+                      <DrawerHeader className="shrink-0 pb-4 px-6">
+                        <DrawerTitle className="text-xl">
+                          Add New Expense
+                        </DrawerTitle>
+                        <DrawerDescription className="text-base">
                           Enter the details of your expense
                         </DrawerDescription>
                       </DrawerHeader>
-                      <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1 min-h-0">
-                        <div className="grid gap-2">
-                          <Label htmlFor="job_no">Job Number</Label>
-                          <Input
-                            id="job_no"
-                            value={formData.job_no}
-                            onChange={(e) => {
-                              setFormData({
-                                ...formData,
-                                job_no: e.target.value,
-                              });
-                              if (formErrors.job_no) {
-                                setFormErrors({
-                                  ...formErrors,
-                                  job_no: undefined,
-                                });
-                              }
-                            }}
-                            required
-                          />
-                          {formErrors.job_no && (
-                            <p className="text-sm text-red-500">
-                              {formErrors.job_no}
-                            </p>
-                          )}
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="date">Date</Label>
-                          <Input
-                            id="date"
-                            type="date"
-                            value={formData.date}
-                            onChange={(e) => {
-                              setFormData({
-                                ...formData,
-                                date: e.target.value,
-                              });
-                              if (formErrors.date) {
-                                setFormErrors({
-                                  ...formErrors,
-                                  date: undefined,
-                                });
-                              }
-                            }}
-                            required
-                          />
-                          {formErrors.date && (
-                            <p className="text-sm text-red-500">
-                              {formErrors.date}
-                            </p>
-                          )}
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="details">Details</Label>
-                          <Input
-                            id="details"
-                            value={formData.details}
-                            onChange={(e) => {
-                              setFormData({
-                                ...formData,
-                                details: e.target.value,
-                              });
-                              if (formErrors.details) {
-                                setFormErrors({
-                                  ...formErrors,
-                                  details: undefined,
-                                });
-                              }
-                            }}
-                            required
-                          />
-                          {formErrors.details && (
-                            <p className="text-sm text-red-500">
-                              {formErrors.details}
-                            </p>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="food">Food (AED)</Label>
+                      <div className="flex-1 overflow-y-auto px-6 pb-4 min-h-0">
+                        <div className="space-y-5">
+                          {/* Job Number Field */}
+                          <div className="space-y-2.5">
+                            <Label
+                              htmlFor="job_no"
+                              className="text-base font-medium"
+                            >
+                              Job Number
+                            </Label>
                             <Input
-                              id="food"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.food === 0 ? "" : formData.food}
+                              id="job_no"
+                              value={formData.job_no}
                               onChange={(e) => {
-                                const value = e.target.value;
                                 setFormData({
                                   ...formData,
-                                  food: value === "" ? 0 : parseFloat(value),
+                                  job_no: e.target.value,
                                 });
-                                if (formErrors.food) {
+                                if (formErrors.job_no) {
                                   setFormErrors({
                                     ...formErrors,
-                                    food: undefined,
+                                    job_no: undefined,
                                   });
                                 }
                               }}
+                              className="h-12 text-base"
+                              placeholder="Enter job number"
+                              required
                             />
-                            {formErrors.food && (
-                              <p className="text-sm text-red-500">
-                                {formErrors.food}
+                            {formErrors.job_no && (
+                              <p className="text-sm text-red-500 font-medium">
+                                {formErrors.job_no}
                               </p>
                             )}
                           </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="taxi">Taxi (AED)</Label>
-                            <Input
-                              id="taxi"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.taxi === 0 ? "" : formData.taxi}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setFormData({
-                                  ...formData,
-                                  taxi: value === "" ? 0 : parseFloat(value),
-                                });
-                                if (formErrors.taxi) {
-                                  setFormErrors({
-                                    ...formErrors,
-                                    taxi: undefined,
-                                  });
-                                }
-                              }}
-                            />
-                            {formErrors.taxi && (
-                              <p className="text-sm text-red-500">
-                                {formErrors.taxi}
-                              </p>
-                            )}
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="others">Others (AED)</Label>
-                            <Input
-                              id="others"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={
-                                formData.others === 0 ? "" : formData.others
-                              }
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setFormData({
-                                  ...formData,
-                                  others: value === "" ? 0 : parseFloat(value),
-                                });
-                                if (formErrors.others) {
-                                  setFormErrors({
-                                    ...formErrors,
-                                    others: undefined,
-                                  });
-                                }
-                              }}
-                            />
-                            {formErrors.others && (
-                              <p className="text-sm text-red-500">
-                                {formErrors.others}
-                              </p>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Receipt Upload Section */}
-                        <div className="grid gap-2">
-                          <Label>Receipts (Optional)</Label>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() =>
-                                document
-                                  .getElementById("receipt-camera")
-                                  ?.click()
-                              }
-                              className="flex-1"
+                          {/* Date Field */}
+                          <div className="space-y-2.5">
+                            <Label
+                              htmlFor="date"
+                              className="text-base font-medium"
                             >
-                              <Camera className="mr-2 h-4 w-4" />
-                              Take Picture
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() =>
-                                document.getElementById("receipt")?.click()
-                              }
-                              className="flex-1"
-                            >
-                              <Upload className="mr-2 h-4 w-4" />
-                              Upload File
-                            </Button>
+                              Date
+                            </Label>
+                            <Input
+                              id="date"
+                              type="date"
+                              value={formData.date}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  date: e.target.value,
+                                });
+                                if (formErrors.date) {
+                                  setFormErrors({
+                                    ...formErrors,
+                                    date: undefined,
+                                  });
+                                }
+                              }}
+                              className="h-12 text-base"
+                              required
+                            />
+                            {formErrors.date && (
+                              <p className="text-sm text-red-500 font-medium">
+                                {formErrors.date}
+                              </p>
+                            )}
                           </div>
-                          <input
-                            id="receipt-camera"
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                          />
-                          <input
-                            id="receipt"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleFileSelect}
-                            className="hidden"
-                          />
-                          {receiptPreviews.length > 0 && (
-                            <div className="grid grid-cols-2 gap-2 mt-2">
-                              {receiptPreviews.map((preview, index) => (
-                                <div key={index} className="relative">
-                                  <img
-                                    src={preview}
-                                    alt={`Receipt preview ${index + 1}`}
-                                    className="h-24 w-full rounded border object-cover"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="sm"
-                                    className="absolute top-1 right-1"
-                                    onClick={() => handleRemoveFile(index)}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              ))}
+
+                          {/* Details Field */}
+                          <div className="space-y-2.5">
+                            <Label
+                              htmlFor="details"
+                              className="text-base font-medium"
+                            >
+                              Details
+                            </Label>
+                            <Input
+                              id="details"
+                              value={formData.details}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  details: e.target.value,
+                                });
+                                if (formErrors.details) {
+                                  setFormErrors({
+                                    ...formErrors,
+                                    details: undefined,
+                                  });
+                                }
+                              }}
+                              className="h-12 text-base"
+                              placeholder="Expense description"
+                              required
+                            />
+                            {formErrors.details && (
+                              <p className="text-sm text-red-500 font-medium">
+                                {formErrors.details}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Expense Amounts Section */}
+                          <div className="space-y-3 pt-2">
+                            <Label className="text-base font-semibold">
+                              Expense Amounts (AED)
+                            </Label>
+
+                            {/* Food Amount */}
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="food"
+                                className="text-sm font-medium text-muted-foreground"
+                              >
+                                Food
+                              </Label>
+                              <Input
+                                id="food"
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={formData.food === 0 ? "" : formData.food}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setFormData({
+                                    ...formData,
+                                    food: value === "" ? 0 : parseFloat(value),
+                                  });
+                                  if (formErrors.food) {
+                                    setFormErrors({
+                                      ...formErrors,
+                                      food: undefined,
+                                    });
+                                  }
+                                }}
+                                className="h-12 text-base"
+                                placeholder="0.00"
+                              />
+                              {formErrors.food && (
+                                <p className="text-sm text-red-500 font-medium">
+                                  {formErrors.food}
+                                </p>
+                              )}
                             </div>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            PNG, JPG up to 5MB each. Select multiple files.
-                          </p>
+
+                            {/* Taxi Amount */}
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="taxi"
+                                className="text-sm font-medium text-muted-foreground"
+                              >
+                                Taxi
+                              </Label>
+                              <Input
+                                id="taxi"
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={formData.taxi === 0 ? "" : formData.taxi}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setFormData({
+                                    ...formData,
+                                    taxi: value === "" ? 0 : parseFloat(value),
+                                  });
+                                  if (formErrors.taxi) {
+                                    setFormErrors({
+                                      ...formErrors,
+                                      taxi: undefined,
+                                    });
+                                  }
+                                }}
+                                className="h-12 text-base"
+                                placeholder="0.00"
+                              />
+                              {formErrors.taxi && (
+                                <p className="text-sm text-red-500 font-medium">
+                                  {formErrors.taxi}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Others Amount */}
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="others"
+                                className="text-sm font-medium text-muted-foreground"
+                              >
+                                Others
+                              </Label>
+                              <Input
+                                id="others"
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={
+                                  formData.others === 0 ? "" : formData.others
+                                }
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setFormData({
+                                    ...formData,
+                                    others:
+                                      value === "" ? 0 : parseFloat(value),
+                                  });
+                                  if (formErrors.others) {
+                                    setFormErrors({
+                                      ...formErrors,
+                                      others: undefined,
+                                    });
+                                  }
+                                }}
+                                className="h-12 text-base"
+                                placeholder="0.00"
+                              />
+                              {formErrors.others && (
+                                <p className="text-sm text-red-500 font-medium">
+                                  {formErrors.others}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Receipt Upload Section */}
+                          <div className="space-y-3 pt-2">
+                            <Label className="text-base font-semibold">
+                              Receipts{" "}
+                              <span className="text-sm font-normal text-muted-foreground">
+                                (Optional)
+                              </span>
+                            </Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="lg"
+                                onClick={() =>
+                                  document
+                                    .getElementById("receipt-camera")
+                                    ?.click()
+                                }
+                                className="h-14 flex flex-col items-center justify-center gap-1"
+                              >
+                                <Camera className="h-5 w-5" />
+                                <span className="text-xs">Take Photo</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="lg"
+                                onClick={() =>
+                                  document.getElementById("receipt")?.click()
+                                }
+                                className="h-14 flex flex-col items-center justify-center gap-1"
+                              >
+                                <Upload className="h-5 w-5" />
+                                <span className="text-xs">Upload File</span>
+                              </Button>
+                            </div>
+                            <input
+                              id="receipt-camera"
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              onChange={handleFileSelect}
+                              className="hidden"
+                            />
+                            <input
+                              id="receipt"
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleFileSelect}
+                              className="hidden"
+                            />
+                            {receiptPreviews.length > 0 && (
+                              <div className="grid grid-cols-2 gap-3 mt-3">
+                                {receiptPreviews.map((preview, index) => (
+                                  <div key={index} className="relative group">
+                                    <img
+                                      src={preview}
+                                      alt={`Receipt ${index + 1}`}
+                                      className="h-32 w-full rounded-lg border-2 object-cover shadow-sm"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="icon"
+                                      className="absolute -top-2 -right-2 h-8 w-8 rounded-full shadow-md"
+                                      onClick={() => handleRemoveFile(index)}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              PNG or JPG, max 5MB each. You can select multiple
+                              files.
+                            </p>
+                          </div>
+
+                          {/* Form Actions */}
+                          <div className="flex flex-col gap-2 pt-4">
+                            <Button
+                              type="submit"
+                              disabled={uploadingReceipt}
+                              className="h-12 text-base font-semibold w-full"
+                            >
+                              {uploadingReceipt ? (
+                                <>
+                                  <Spinner className="mr-2 h-4 w-4" />
+                                  Uploading receipts...
+                                </>
+                              ) : (
+                                "Add Expense"
+                              )}
+                            </Button>
+                            <DrawerClose asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-12 text-base w-full"
+                              >
+                                Cancel
+                              </Button>
+                            </DrawerClose>
+                          </div>
                         </div>
                       </div>
-                      <DrawerFooter className="pb-8 shrink-0">
-                        <Button type="submit" disabled={uploadingReceipt}>
-                          {uploadingReceipt ? (
-                            <>
-                              <Spinner className="mr-2 h-4 w-4" />
-                              Uploading...
-                            </>
-                          ) : (
-                            "Add Expense"
-                          )}
-                        </Button>
-                        <DrawerClose asChild>
-                          <Button type="button" variant="outline">
-                            Cancel
-                          </Button>
-                        </DrawerClose>
-                      </DrawerFooter>
                     </form>
                   </DrawerContent>
                 </Drawer>
@@ -2577,262 +2657,340 @@ export function ExpenseTable({ userName }: ExpenseTableProps) {
 
           {/* Mobile Add Expense Drawer */}
           <Drawer open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DrawerContent className="max-h-[95vh] flex flex-col">
-              <form
-                onSubmit={handleAdd}
-                className="px-4 flex flex-col flex-1 min-h-0"
-              >
-                <DrawerHeader className="shrink-0">
-                  <DrawerTitle>Add New Expense</DrawerTitle>
-                  <DrawerDescription>
+            <DrawerContent className="h-[92vh] flex flex-col">
+              <form onSubmit={handleAdd} className="flex flex-col h-full">
+                <DrawerHeader className="shrink-0 pb-4 px-6">
+                  <DrawerTitle className="text-xl">Add New Expense</DrawerTitle>
+                  <DrawerDescription className="text-base">
                     Enter the details of your expense
                   </DrawerDescription>
                 </DrawerHeader>
-                <div className="grid gap-4 py-4 overflow-y-auto px-1 flex-1 min-h-0">
-                  <div className="grid gap-2">
-                    <Label htmlFor="mobile_job_no">Job Number</Label>
-                    <Input
-                      id="mobile_job_no"
-                      value={formData.job_no}
-                      onChange={(e) => {
-                        setFormData({
-                          ...formData,
-                          job_no: e.target.value,
-                        });
-                        if (formErrors.job_no) {
-                          setFormErrors({
-                            ...formErrors,
-                            job_no: undefined,
-                          });
-                        }
-                      }}
-                      required
-                    />
-                    {formErrors.job_no && (
-                      <p className="text-sm text-red-500">
-                        {formErrors.job_no}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="mobile_date">Date</Label>
-                    <Input
-                      id="mobile_date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => {
-                        setFormData({ ...formData, date: e.target.value });
-                        if (formErrors.date) {
-                          setFormErrors({ ...formErrors, date: undefined });
-                        }
-                      }}
-                      required
-                    />
-                    {formErrors.date && (
-                      <p className="text-sm text-red-500">{formErrors.date}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="mobile_details">Details</Label>
-                    <Input
-                      id="mobile_details"
-                      value={formData.details}
-                      onChange={(e) => {
-                        setFormData({
-                          ...formData,
-                          details: e.target.value,
-                        });
-                        if (formErrors.details) {
-                          setFormErrors({
-                            ...formErrors,
-                            details: undefined,
-                          });
-                        }
-                      }}
-                      required
-                    />
-                    {formErrors.details && (
-                      <p className="text-sm text-red-500">
-                        {formErrors.details}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="mobile_food">Food (AED)</Label>
+                <div className="flex-1 overflow-y-auto px-6 pb-16 min-h-0">
+                  <div className="space-y-5">
+                    {/* Job Number Field */}
+                    <div className="space-y-2.5">
+                      <Label
+                        htmlFor="mobile_job_no"
+                        className="text-base font-medium"
+                      >
+                        Job Number
+                      </Label>
                       <Input
-                        id="mobile_food"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.food === 0 ? "" : formData.food}
+                        id="mobile_job_no"
+                        value={formData.job_no}
                         onChange={(e) => {
-                          const value = e.target.value;
                           setFormData({
                             ...formData,
-                            food: value === "" ? 0 : parseFloat(value),
+                            job_no: e.target.value,
                           });
-                          if (formErrors.food) {
+                          if (formErrors.job_no) {
                             setFormErrors({
                               ...formErrors,
-                              food: undefined,
+                              job_no: undefined,
                             });
                           }
                         }}
+                        className="h-12 text-base"
+                        placeholder="Enter job number"
+                        required
                       />
-                      {formErrors.food && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.food}
+                      {formErrors.job_no && (
+                        <p className="text-sm text-red-500 font-medium">
+                          {formErrors.job_no}
                         </p>
                       )}
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="mobile_taxi">Taxi (AED)</Label>
-                      <Input
-                        id="mobile_taxi"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.taxi === 0 ? "" : formData.taxi}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setFormData({
-                            ...formData,
-                            taxi: value === "" ? 0 : parseFloat(value),
-                          });
-                          if (formErrors.taxi) {
-                            setFormErrors({
-                              ...formErrors,
-                              taxi: undefined,
-                            });
-                          }
-                        }}
-                      />
-                      {formErrors.taxi && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.taxi}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="mobile_others">Others (AED)</Label>
-                      <Input
-                        id="mobile_others"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.others === 0 ? "" : formData.others}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setFormData({
-                            ...formData,
-                            others: value === "" ? 0 : parseFloat(value),
-                          });
-                          if (formErrors.others) {
-                            setFormErrors({
-                              ...formErrors,
-                              others: undefined,
-                            });
-                          }
-                        }}
-                      />
-                      {formErrors.others && (
-                        <p className="text-sm text-red-500">
-                          {formErrors.others}
-                        </p>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Receipt Upload Section */}
-                  <div className="grid gap-2">
-                    <Label>Receipts (Optional)</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          document
-                            .getElementById("mobile-receipt-camera")
-                            ?.click()
-                        }
-                        className="flex-1"
+                    {/* Date Field */}
+                    <div className="space-y-2.5">
+                      <Label
+                        htmlFor="mobile_date"
+                        className="text-base font-medium"
                       >
-                        <Camera className="mr-2 h-4 w-4" />
-                        Take Picture
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          document.getElementById("mobile-receipt")?.click()
-                        }
-                        className="flex-1"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload File
-                      </Button>
+                        Date
+                      </Label>
+                      <Input
+                        id="mobile_date"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => {
+                          setFormData({ ...formData, date: e.target.value });
+                          if (formErrors.date) {
+                            setFormErrors({ ...formErrors, date: undefined });
+                          }
+                        }}
+                        className="h-12 text-base"
+                        required
+                      />
+                      {formErrors.date && (
+                        <p className="text-sm text-red-500 font-medium">
+                          {formErrors.date}
+                        </p>
+                      )}
                     </div>
-                    <input
-                      id="mobile-receipt-camera"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <input
-                      id="mobile-receipt"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    {receiptPreviews.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {receiptPreviews.map((preview, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={preview}
-                              alt={`Receipt preview ${index + 1}`}
-                              className="h-24 w-full rounded border object-cover"
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="absolute top-1 right-1"
-                              onClick={() => handleRemoveFile(index)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
+
+                    {/* Details Field */}
+                    <div className="space-y-2.5">
+                      <Label
+                        htmlFor="mobile_details"
+                        className="text-base font-medium"
+                      >
+                        Details
+                      </Label>
+                      <Input
+                        id="mobile_details"
+                        value={formData.details}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            details: e.target.value,
+                          });
+                          if (formErrors.details) {
+                            setFormErrors({
+                              ...formErrors,
+                              details: undefined,
+                            });
+                          }
+                        }}
+                        className="h-12 text-base"
+                        placeholder="Expense description"
+                        required
+                      />
+                      {formErrors.details && (
+                        <p className="text-sm text-red-500 font-medium">
+                          {formErrors.details}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Expense Amounts Section */}
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-base font-semibold">
+                        Expense Amounts (AED)
+                      </Label>
+
+                      {/* Food Amount */}
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="mobile_food"
+                          className="text-sm font-medium text-muted-foreground"
+                        >
+                          Food
+                        </Label>
+                        <Input
+                          id="mobile_food"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={formData.food === 0 ? "" : formData.food}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData({
+                              ...formData,
+                              food: value === "" ? 0 : parseFloat(value),
+                            });
+                            if (formErrors.food) {
+                              setFormErrors({
+                                ...formErrors,
+                                food: undefined,
+                              });
+                            }
+                          }}
+                          className="h-12 text-base"
+                          placeholder="0.00"
+                        />
+                        {formErrors.food && (
+                          <p className="text-sm text-red-500 font-medium">
+                            {formErrors.food}
+                          </p>
+                        )}
                       </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      PNG, JPG up to 5MB each. Select multiple files.
-                    </p>
+
+                      {/* Taxi Amount */}
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="mobile_taxi"
+                          className="text-sm font-medium text-muted-foreground"
+                        >
+                          Taxi
+                        </Label>
+                        <Input
+                          id="mobile_taxi"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={formData.taxi === 0 ? "" : formData.taxi}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData({
+                              ...formData,
+                              taxi: value === "" ? 0 : parseFloat(value),
+                            });
+                            if (formErrors.taxi) {
+                              setFormErrors({
+                                ...formErrors,
+                                taxi: undefined,
+                              });
+                            }
+                          }}
+                          className="h-12 text-base"
+                          placeholder="0.00"
+                        />
+                        {formErrors.taxi && (
+                          <p className="text-sm text-red-500 font-medium">
+                            {formErrors.taxi}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Others Amount */}
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="mobile_others"
+                          className="text-sm font-medium text-muted-foreground"
+                        >
+                          Others
+                        </Label>
+                        <Input
+                          id="mobile_others"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={formData.others === 0 ? "" : formData.others}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData({
+                              ...formData,
+                              others: value === "" ? 0 : parseFloat(value),
+                            });
+                            if (formErrors.others) {
+                              setFormErrors({
+                                ...formErrors,
+                                others: undefined,
+                              });
+                            }
+                          }}
+                          className="h-12 text-base"
+                          placeholder="0.00"
+                        />
+                        {formErrors.others && (
+                          <p className="text-sm text-red-500 font-medium">
+                            {formErrors.others}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Receipt Upload Section */}
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-base font-semibold">
+                        Receipts{" "}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          (Optional)
+                        </span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          onClick={() =>
+                            document
+                              .getElementById("mobile-receipt-camera")
+                              ?.click()
+                          }
+                          className="h-14 flex flex-col items-center justify-center gap-1"
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span className="text-xs">Take Photo</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          onClick={() =>
+                            document.getElementById("mobile-receipt")?.click()
+                          }
+                          className="h-14 flex flex-col items-center justify-center gap-1"
+                        >
+                          <Upload className="h-5 w-5" />
+                          <span className="text-xs">Upload File</span>
+                        </Button>
+                      </div>
+                      <input
+                        id="mobile-receipt-camera"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <input
+                        id="mobile-receipt"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      {receiptPreviews.length > 0 && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          {receiptPreviews.map((preview, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={preview}
+                                alt={`Receipt ${index + 1}`}
+                                className="h-32 w-full rounded-lg border-2 object-cover shadow-sm"
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="absolute -top-2 -right-2 h-8 w-8 rounded-full shadow-md"
+                                onClick={() => handleRemoveFile(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        PNG or JPG, max 5MB each. You can select multiple files.
+                      </p>
+                    </div>
+
+                    {/* Form Actions */}
+                    <div className="flex flex-col gap-2 pt-4">
+                      <Button
+                        type="submit"
+                        disabled={uploadingReceipt}
+                        className="h-12 text-base font-semibold w-full"
+                      >
+                        {uploadingReceipt ? (
+                          <>
+                            <Spinner className="mr-2 h-4 w-4" />
+                            Uploading receipts...
+                          </>
+                        ) : (
+                          "Add Expense"
+                        )}
+                      </Button>
+                      <DrawerClose asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-12 text-base w-full"
+                        >
+                          Cancel
+                        </Button>
+                      </DrawerClose>
+                    </div>
                   </div>
                 </div>
-                <DrawerFooter className="pb-8 shrink-0">
-                  <Button type="submit" disabled={uploadingReceipt}>
-                    {uploadingReceipt ? (
-                      <>
-                        <Spinner className="mr-2 h-4 w-4" />
-                        Uploading...
-                      </>
-                    ) : (
-                      "Add Expense"
-                    )}
-                  </Button>
-                  <DrawerClose asChild>
-                    <Button type="button" variant="outline">
-                      Cancel
-                    </Button>
-                  </DrawerClose>
-                </DrawerFooter>
               </form>
             </DrawerContent>
           </Drawer>
