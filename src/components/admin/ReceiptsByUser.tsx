@@ -388,32 +388,37 @@ export function ReceiptsByUser() {
         return;
       }
 
-      // Call admin PDF edge function instead of Lambda directly
+      // Call admin Lambda function directly
       setPdfProgress("Generating PDF...");
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-generate-pdf`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            expenses: expenses,
-            selectedMonth: formatMonthDisplay(selectedMonth),
-            userName: selectedUserName || null,
-            userId: selectedUserId,
-          }),
+
+      const requestBody = {
+        expenses: expenses,
+        selectedMonth: formatMonthDisplay(selectedMonth),
+        userName: selectedUserName || null,
+        userId: selectedUserId,
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        userToken: session.access_token,
+      };
+
+      console.log("Calling Lambda with:", {
+        url: import.meta.env.VITE_LAMBDA_ADMIN_PDF_URL,
+        expenseCount: expenses.length,
+        userName: selectedUserName,
+        userId: selectedUserId,
+      });
+
+      const response = await fetch(import.meta.env.VITE_LAMBDA_ADMIN_PDF_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(requestBody),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error(
-          "Edge function error response:",
-          response.status,
-          errorData,
-        );
+        console.error("Lambda error response:", response.status, errorData);
         setError(
           `Failed to generate PDF: ${errorData.error || response.statusText}`,
         );

@@ -118,8 +118,8 @@ export const handler: APIGatewayProxyHandler = async (
     // Check if user is admin using admin client
     const { data: userProfile, error: profileError } = await adminClient
       .from("user_profile")
-      .select("role")
-      .eq("id", user.id)
+      .select("admin")
+      .eq("user_id", user.id)
       .single();
 
     if (profileError) {
@@ -131,7 +131,7 @@ export const handler: APIGatewayProxyHandler = async (
       };
     }
 
-    if (userProfile?.role !== "admin") {
+    if (!userProfile?.admin) {
       return {
         statusCode: 403,
         headers: { "Content-Type": "application/json" },

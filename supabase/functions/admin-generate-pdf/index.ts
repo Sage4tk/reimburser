@@ -105,11 +105,11 @@ serve(async (req) => {
       },
     );
 
-    // Get Lambda URL from environment
-    const lambdaUrl = Deno.env.get("LAMBDA_PDF_URL");
+    // Get Admin Lambda URL from environment
+    const lambdaUrl = Deno.env.get("LAMBDA_ADMIN_PDF_URL");
     if (!lambdaUrl) {
       return new Response(
-        JSON.stringify({ error: "Lambda URL not configured" }),
+        JSON.stringify({ error: "Admin Lambda URL not configured" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -117,55 +117,20 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all receipts for the expenses using admin client
-    const expenseIds = expenses.map((e: any) => e.id);
-    const { data: receiptsData } = await supabaseAdmin
-      .from("receipt")
-      .select("id, path, expense_id, created_at")
-      .in("expense_id", expenseIds)
-      .order("created_at", { ascending: true });
-
-    // Generate signed URLs for all receipts
-    const receiptsWithUrls = await Promise.all(
-      (receiptsData || []).map(async (receipt) => {
-        const { data: signedUrl } = await supabaseAdmin.storage
-          .from("receipts")
-          .createSignedUrl(receipt.path, 3600); // 1 hour expiry
-
-        return {
-          id: receipt.id,
-          path: receipt.path,
-          url: signedUrl?.signedUrl || "",
-          created_at: receipt.created_at,
-          expense_id: receipt.expense_id,
-        };
-      }),
-    );
-
-    // Map receipts to expenses
-    const expensesWithReceipts = expenses.map((expense: any) => {
-      const expenseReceipts = receiptsWithUrls.filter(
-        (r) => r.expense_id === expense.id && r.url,
-      );
-      return {
-        ...expense,
-        receipts: expenseReceipts,
-      };
-    });
-
-    // Call Lambda to generate PDF
+    // Call Lambda to generate PDF - Lambda will fetch receipts itself using admin privileges
     const lambdaResponse = await fetch(lambdaUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        expenses: expensesWithReceipts,
+        expenses: expenses, // Send expenses without receipts - Lambda will fetch them
         selectedMonth,
         userName,
+        userId,
         supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "",
         supabaseAnonKey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-        userToken: token, // Include token for Lambda (though receipts already have signed URLs)
+        userToken: token,
       }),
     });
 
