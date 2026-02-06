@@ -243,10 +243,10 @@ export function UsersManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <h2 className="text-xl font-semibold">User Management</h2>
         <div className="flex items-center gap-2">
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search users..."
@@ -255,22 +255,22 @@ export function UsersManager() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="pl-8 w-[250px]"
+              className="pl-8 w-full sm:w-[250px]"
             />
           </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>Create User</Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)} className="whitespace-nowrap">Create User</Button>
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
               <TableHead>Full Name</TableHead>
               <TableHead>Admin</TableHead>
-              <TableHead>Initial Login</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="hidden sm:table-cell">Initial Login</TableHead>
+              <TableHead className="hidden sm:table-cell">Created</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -287,11 +287,11 @@ export function UsersManager() {
             ) : (
               paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.email}</TableCell>
-                  <TableCell>{user.full_name || "-"}</TableCell>
+                  <TableCell className="font-medium max-w-[150px] truncate">{user.email}</TableCell>
+                  <TableCell className="max-w-[120px] truncate">{user.full_name || "-"}</TableCell>
                   <TableCell>{user.admin ? "Yes" : "No"}</TableCell>
-                  <TableCell>{user.initial_login ? "Yes" : "No"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">{user.initial_login ? "Yes" : "No"}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
@@ -321,7 +321,7 @@ export function UsersManager() {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
           <p className="text-sm text-muted-foreground">
             Showing {startIndex + 1} to {Math.min(endIndex, filteredUsers.length)} of{" "}
             {filteredUsers.length} users
@@ -335,12 +335,16 @@ export function UsersManager() {
             >
               Previous
             </Button>
+            <span className="flex items-center text-sm text-muted-foreground px-2 sm:hidden">
+              {currentPage} / {totalPages}
+            </span>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <Button
                 key={page}
                 variant={currentPage === page ? "default" : "outline"}
                 size="sm"
                 onClick={() => handlePageChange(page)}
+                className="hidden sm:inline-flex"
               >
                 {page}
               </Button>

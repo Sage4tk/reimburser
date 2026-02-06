@@ -276,8 +276,8 @@ export function ReceiptsManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <h2 className="text-xl font-semibold truncate">
           {viewLevel === "jobs" && "Receipts by Job Number"}
           {viewLevel === "users" && `Users for Job ${selectedJobNo}`}
           {viewLevel === "receipts" &&
@@ -285,7 +285,7 @@ export function ReceiptsManager() {
         </h2>
         <div className="flex items-center gap-2">
           {viewLevel !== "receipts" && (
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-initial">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={
@@ -293,12 +293,12 @@ export function ReceiptsManager() {
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 w-[250px]"
+                className="pl-8 w-full sm:w-[250px]"
               />
             </div>
           )}
           {viewLevel !== "jobs" && (
-            <Button onClick={handleBack} variant="outline" size="sm">
+            <Button onClick={handleBack} variant="outline" size="sm" className="whitespace-nowrap">
               Back
             </Button>
           )}
@@ -433,7 +433,7 @@ export function ReceiptsManager() {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
           <p className="text-sm text-muted-foreground">
             Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
             {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{" "}
@@ -453,7 +453,7 @@ export function ReceiptsManager() {
                 <Spinner className="h-4 w-4" />
               ) : (
                 <>
-                  Page {currentPage} of {totalPages}
+                  {currentPage} / {totalPages}
                 </>
               )}
             </span>

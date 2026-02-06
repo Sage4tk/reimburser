@@ -607,10 +607,10 @@ export function ReceiptsByUser() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Receipts by User</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Receipts by User</h1>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             {viewLevel === "users" &&
               "Select a user to view their reimbursement months"}
             {viewLevel === "months" && "Select a month to view expenses"}
@@ -628,7 +628,7 @@ export function ReceiptsByUser() {
               }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-[250px]"
+              className="pl-8 w-full sm:w-[250px]"
             />
           </div>
         )}
@@ -642,12 +642,12 @@ export function ReceiptsByUser() {
           <CardHeader>
             <CardTitle>All Users</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead className="hidden sm:table-cell">Email</TableHead>
                   <TableHead className="text-right">Total Expenses</TableHead>
                   <TableHead className="text-right">Total Amount</TableHead>
                 </TableRow>
@@ -672,7 +672,7 @@ export function ReceiptsByUser() {
                       <TableCell className="font-medium">
                         {user.full_name || "N/A"}
                       </TableCell>
-                      <TableCell>{user.email}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{user.email}</TableCell>
                       <TableCell className="text-right">
                         {user.total_expenses}
                       </TableCell>
@@ -744,8 +744,8 @@ export function ReceiptsByUser() {
       {viewLevel === "expenses" && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle className="text-base sm:text-lg">
                 Expenses - {selectedUserName} -{" "}
                 {formatMonthDisplay(selectedMonth)}
               </CardTitle>
@@ -756,8 +756,8 @@ export function ReceiptsByUser() {
                   size="sm"
                   disabled={pdfGenerating}
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Excel
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Excel</span>
                 </Button>
                 <Button
                   onClick={handleGeneratePDF}
@@ -765,22 +765,22 @@ export function ReceiptsByUser() {
                   size="sm"
                   disabled={pdfGenerating}
                 >
-                  <FileText className="h-4 w-4 mr-2" />
-                  {pdfGenerating ? pdfProgress : "PDF"}
+                  <FileText className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{pdfGenerating ? pdfProgress : "PDF"}</span>
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Job No</TableHead>
-                  <TableHead>Details</TableHead>
-                  <TableHead className="text-right">Food</TableHead>
-                  <TableHead className="text-right">Taxi</TableHead>
-                  <TableHead className="text-right">Others</TableHead>
+                  <TableHead className="hidden sm:table-cell">Details</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Food</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Taxi</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Others</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Receipts</TableHead>
                 </TableRow>
@@ -798,18 +798,18 @@ export function ReceiptsByUser() {
                 ) : (
                   filteredExpenses.map((expense) => (
                     <TableRow key={expense.id}>
-                      <TableCell>{formatDate(expense.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(expense.date)}</TableCell>
                       <TableCell className="font-medium">
                         {expense.job_no}
                       </TableCell>
-                      <TableCell>{expense.details}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="hidden sm:table-cell">{expense.details}</TableCell>
+                      <TableCell className="text-right hidden sm:table-cell">
                         {formatCurrency(expense.food)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right hidden sm:table-cell">
                         {formatCurrency(expense.taxi)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right hidden sm:table-cell">
                         {formatCurrency(expense.others)}
                       </TableCell>
                       <TableCell className="text-right font-medium">

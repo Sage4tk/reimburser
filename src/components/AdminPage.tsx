@@ -10,6 +10,8 @@ import { AdminDashboard } from "./admin/AdminDashboard";
 import { ReceiptsByUser } from "./admin/ReceiptsByUser";
 import supabase from "../lib/supabase";
 import { Skeleton } from "./ui/skeleton";
+import { useIsMobile } from "../hooks/use-mobile";
+import { Menu, X } from "lucide-react";
 
 type AdminTab = "dashboard" | "receipts" | "users" | "receipts-by-user";
 
@@ -63,14 +65,22 @@ export function AdminPage() {
   };
 
   const [activeTab, setActiveTab] = useState<AdminTab>(getActiveTabFromPath());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setActiveTab(getActiveTabFromPath());
   }, [location.pathname]);
 
+  // Close sidebar when switching away from mobile
+  useEffect(() => {
+    if (!isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+
   const handleTabChange = (tab: AdminTab) => {
     setActiveTab(tab);
     navigate(`/admin/${tab}`);
+    if (isMobile) setSidebarOpen(false);
   };
 
   const renderContent = () => {
@@ -96,14 +106,14 @@ export function AdminPage() {
           </div>
         </div>
         <div className="flex pt-16 flex-1">
-          <aside className="fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4">
+          <aside className="fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4 hidden md:block">
             <div className="space-y-1">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
           </aside>
-          <main className="flex-1 ml-64 p-8 overflow-y-auto">
+          <main className="flex-1 md:ml-64 p-4 sm:p-6 md:p-8 overflow-y-auto">
             <Skeleton className="h-8 w-64 mb-6" />
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
@@ -126,13 +136,24 @@ export function AdminPage() {
       {/* Header - Fixed */}
       <div className="fixed top-0 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden mr-2"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
           <div className="flex-1">
             <h1 className="text-xl font-bold">Admin Panel</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <UserProfile />
-            <Button onClick={() => navigate("/")} variant="outline" size="sm">
+            <Button onClick={() => navigate("/")} variant="outline" size="sm" className="hidden sm:inline-flex">
               Reimbursement
+            </Button>
+            <Button onClick={() => navigate("/")} variant="outline" size="icon" className="sm:hidden" title="Reimbursement">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </Button>
             <Button onClick={signOut} variant="outline" size="sm">
               Sign Out
@@ -143,8 +164,22 @@ export function AdminPage() {
 
       {/* Add padding-top to account for fixed header */}
       <div className="flex pt-16 flex-1">
-        {/* Sidebar - Fixed */}
-        <aside className="fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4 overflow-y-auto">
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar - Fixed on desktop, slide-over on mobile */}
+        <aside
+          className={cn(
+            "fixed left-0 top-16 bottom-0 w-64 border-r bg-background p-4 overflow-y-auto z-40 transition-transform duration-200 ease-in-out",
+            "md:translate-x-0",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          )}
+        >
           <nav className="space-y-1">
             <button
               onClick={() => handleTabChange("dashboard")}
@@ -261,7 +296,7 @@ export function AdminPage() {
         </aside>
 
         {/* Main Content - Scrollable with left margin to account for fixed sidebar */}
-        <main className="flex-1 ml-64 p-6 sm:p-8 overflow-y-auto">
+        <main className="flex-1 md:ml-64 p-4 sm:p-6 md:p-8 overflow-y-auto">
           <div className="mx-auto max-w-7xl">{renderContent()}</div>
         </main>
       </div>
