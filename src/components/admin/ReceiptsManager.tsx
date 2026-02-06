@@ -11,7 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
+import { Search } from "lucide-react";
 
 interface JobGroup {
   job_no: string;
@@ -47,6 +49,9 @@ export function ReceiptsManager() {
   const [jobGroups, setJobGroups] = useState<JobGroup[]>([]);
   const [userExpenses, setUserExpenses] = useState<UserExpense[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -123,6 +128,7 @@ export function ReceiptsManager() {
 
   const handleJobDoubleClick = (jobNo: string) => {
     setCurrentPage(1);
+    setSearchQuery("");
     setSearchParams({ job: jobNo });
   };
 
@@ -175,6 +181,7 @@ export function ReceiptsManager() {
 
   const handleUserDoubleClick = (userId: string, userName: string | null) => {
     setCurrentPage(1);
+    setSearchQuery("");
     setSearchParams({
       job: selectedJobNo,
       user: userId,
@@ -230,6 +237,7 @@ export function ReceiptsManager() {
   };
 
   const handleBack = () => {
+    setSearchQuery("");
     if (viewLevel === "receipts") {
       setSearchParams({ job: selectedJobNo });
       setReceipts([]);
@@ -244,6 +252,19 @@ export function ReceiptsManager() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
+  // Filter data by search query
+  const filteredJobGroups = searchQuery
+    ? jobGroups.filter((g) =>
+        g.job_no.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : jobGroups;
+
+  const filteredUserExpenses = searchQuery
+    ? userExpenses.filter((u) =>
+        (u.full_name?.toLowerCase() || "").includes(searchQuery.toLowerCase())
+      )
+    : userExpenses;
 
   if (loading && viewLevel === "jobs") {
     return (
@@ -262,11 +283,26 @@ export function ReceiptsManager() {
           {viewLevel === "receipts" &&
             `Receipts for ${selectedUserName} - Job ${selectedJobNo}`}
         </h2>
-        {viewLevel !== "jobs" && (
-          <Button onClick={handleBack} variant="outline" size="sm">
-            Back
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {viewLevel !== "receipts" && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={
+                  viewLevel === "jobs" ? "Search job numbers..." : "Search users..."
+                }
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 w-[250px]"
+              />
+            </div>
+          )}
+          {viewLevel !== "jobs" && (
+            <Button onClick={handleBack} variant="outline" size="sm">
+              Back
+            </Button>
+          )}
+        </div>
       </div>
 
       {viewLevel === "jobs" && (
@@ -280,17 +316,17 @@ export function ReceiptsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {jobGroups.length === 0 ? (
+              {filteredJobGroups.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={3}
                     className="text-center text-muted-foreground"
                   >
-                    No receipts found
+                    {searchQuery ? "No jobs match your search" : "No receipts found"}
                   </TableCell>
                 </TableRow>
               ) : (
-                jobGroups.map((group, index) => (
+                filteredJobGroups.map((group, index) => (
                   <TableRow
                     key={`${group.job_no}-${index}`}
                     onDoubleClick={() => handleJobDoubleClick(group.job_no)}
@@ -325,17 +361,17 @@ export function ReceiptsManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {userExpenses.length === 0 ? (
+                {filteredUserExpenses.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={3}
                       className="text-center text-muted-foreground"
                     >
-                      No users found
+                      {searchQuery ? "No users match your search" : "No users found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  userExpenses.map((user) => (
+                  filteredUserExpenses.map((user) => (
                     <TableRow
                       key={user.user_id}
                       onDoubleClick={() =>

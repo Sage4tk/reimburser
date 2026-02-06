@@ -15,8 +15,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths, addMonths } from "date-fns";
 import { Skeleton } from "../ui/skeleton";
+import { Button } from "../ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Calendar } from "../ui/calendar";
+import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
 
 interface Expense {
   id: string;
@@ -67,12 +71,13 @@ export function AdminDashboard() {
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [userExpenses, setUserExpenses] = useState<UserExpense[]>([]);
   const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>([]);
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [showReimbursementModal, setShowReimbursementModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [currentDate]);
 
   const fetchDashboardData = async () => {
     try {
@@ -220,11 +225,50 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          {format(currentDate, "EEEE, MMMM d, yyyy")}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            {format(currentDate, "MMMM yyyy")}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                {format(currentDate, "MMMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setCurrentDate(date);
+                    setCalendarOpen(false);
+                  }
+                }}
+                defaultMonth={currentDate}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

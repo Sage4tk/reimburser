@@ -12,7 +12,8 @@ import {
   TableRow,
 } from "../ui/table";
 import { Spinner } from "../ui/spinner";
-import { ChevronLeft, Download, FileText } from "lucide-react";
+import { ChevronLeft, Download, FileText, Search } from "lucide-react";
+import { Input } from "../ui/input";
 import { Alert, AlertDescription } from "../ui/alert";
 import type { Tables } from "../../lib/database.types";
 import * as XLSX from "xlsx-js-style";
@@ -53,6 +54,9 @@ export function ReceiptsByUser() {
   const [error, setError] = useState<string | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<string>("");
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Data states
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -200,6 +204,7 @@ export function ReceiptsByUser() {
   };
 
   const handleUserClick = (user: UserSummary) => {
+    setSearchQuery("");
     setSearchParams({
       userId: user.user_id,
       userName: user.full_name || user.email,
@@ -207,6 +212,7 @@ export function ReceiptsByUser() {
   };
 
   const handleMonthClick = (month: MonthSummary) => {
+    setSearchQuery("");
     setSearchParams({
       userId: selectedUserId,
       userName: selectedUserName,
@@ -215,6 +221,7 @@ export function ReceiptsByUser() {
   };
 
   const handleBack = () => {
+    setSearchQuery("");
     if (viewLevel === "expenses") {
       // Go back to months
       setSearchParams({
@@ -565,6 +572,23 @@ export function ReceiptsByUser() {
     );
   };
 
+  // Filter data by search query
+  const filteredUsers = searchQuery
+    ? users.filter(
+        (user) =>
+          (user.full_name?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : users;
+
+  const filteredExpenses = searchQuery
+    ? expenses.filter(
+        (expense) =>
+          expense.job_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          expense.details.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : expenses;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -583,14 +607,31 @@ export function ReceiptsByUser() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Receipts by User</h1>
-        <p className="text-muted-foreground mt-2">
-          {viewLevel === "users" &&
-            "Select a user to view their reimbursement months"}
-          {viewLevel === "months" && "Select a month to view expenses"}
-          {viewLevel === "expenses" && "View all expenses and receipts"}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Receipts by User</h1>
+          <p className="text-muted-foreground mt-2">
+            {viewLevel === "users" &&
+              "Select a user to view their reimbursement months"}
+            {viewLevel === "months" && "Select a month to view expenses"}
+            {viewLevel === "expenses" && "View all expenses and receipts"}
+          </p>
+        </div>
+        {(viewLevel === "users" || viewLevel === "expenses") && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={
+                viewLevel === "users"
+                  ? "Search users..."
+                  : "Search by job or details..."
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 w-[250px]"
+            />
+          </div>
+        )}
       </div>
 
       {renderBreadcrumb()}
@@ -612,17 +653,17 @@ export function ReceiptsByUser() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.length === 0 ? (
+                {filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={4}
                       className="text-center text-muted-foreground"
                     >
-                      No users with expenses found
+                      {searchQuery ? "No users match your search" : "No users with expenses found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user) => (
+                  filteredUsers.map((user) => (
                     <TableRow
                       key={user.user_id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -745,17 +786,17 @@ export function ReceiptsByUser() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.length === 0 ? (
+                {filteredExpenses.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
                       className="text-center text-muted-foreground"
                     >
-                      No expenses found
+                      {searchQuery ? "No expenses match your search" : "No expenses found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  expenses.map((expense) => (
+                  filteredExpenses.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell>{formatDate(expense.date)}</TableCell>
                       <TableCell className="font-medium">

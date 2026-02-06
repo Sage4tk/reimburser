@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Search } from "lucide-react";
 
 interface User {
   id: string;
@@ -50,6 +50,9 @@ export function UsersManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -211,11 +214,20 @@ export function UsersManager() {
     resetForm();
   };
 
+  // Filter users by search query
+  const filteredUsers = searchQuery
+    ? users.filter(
+        (user) =>
+          (user.email?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+          (user.full_name?.toLowerCase() || "").includes(searchQuery.toLowerCase())
+      )
+    : users;
+
   // Pagination calculations
-  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedUsers = users.slice(startIndex, endIndex);
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -233,7 +245,21 @@ export function UsersManager() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">User Management</h2>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>Create User</Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-8 w-[250px]"
+            />
+          </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>Create User</Button>
+        </div>
       </div>
 
       <div className="rounded-md border">
@@ -249,13 +275,13 @@ export function UsersManager() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
                   className="text-center text-muted-foreground"
                 >
-                  No users found
+                  {searchQuery ? "No users match your search" : "No users found"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -297,8 +323,8 @@ export function UsersManager() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, users.length)} of{" "}
-            {users.length} users
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredUsers.length)} of{" "}
+            {filteredUsers.length} users
           </p>
           <div className="flex gap-2">
             <Button
